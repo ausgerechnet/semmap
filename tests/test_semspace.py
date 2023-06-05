@@ -1,11 +1,12 @@
-from semmap.semspace import SemanticSpace
 from pandas import read_csv
+
+from semmap.semspace import SemanticSpace
 import pytest
 
 
 def test_embeddings(brexit_corpus):
     semspace = SemanticSpace(brexit_corpus['magnitude_path'])
-    embeddings = semspace._embeddings(['angela', 'merkel'])
+    embeddings = semspace.embeddings(['angela', 'merkel'])
     print(embeddings)
 
 
@@ -29,13 +30,18 @@ def test_add_item(brexit_corpus):
     semspace = SemanticSpace(brexit_corpus['magnitude_path'])
     df = read_csv("tests/data/BREXIT_merkel-ll-2d.tsv", sep="\t", index_col=0)
     semspace.coordinates = df[['x', 'y']]
-    print(semspace.add('test'))
+    print(semspace.add(['test']))
     print(semspace.coordinates)
 
 
-@pytest.mark.now
 def test_vis(brexit_corpus):
     df = read_csv("tests/data/BREXIT_merkel-ll-2d.tsv", sep="\t", index_col=0)
     semspace = SemanticSpace(brexit_corpus['magnitude_path'])
     semspace.coordinates = df[['x', 'y']]
-    semspace.visualize(size=df['log_ratio'])
+
+
+def test_pipeline_sz(sz_corpus):
+    ams = read_csv("tests/data/ufa-sz-atomkraft/201308.tsv", sep="\t", index_col=0)
+    semspace = SemanticSpace(sz_corpus['magnitude_path'])
+    semspace.generate2d(ams.index)
+    print(semspace.coordinates)

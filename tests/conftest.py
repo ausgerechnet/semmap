@@ -29,3 +29,27 @@ def brexit_corpus():
         'meta_path': meta_path,
         'magnitude_path': magnitude_path
     }
+
+
+@pytest.fixture(scope='function')
+def sz_corpus():
+    """ settings for SZ_2009_14 """
+
+    registry_path = "/home/ausgerechnet/corpora/cwb/registry/"
+
+    corpus_name = "SZ_2009_14"
+
+    meta_path = (
+        "/home/ausgerechnet/corpora/cwb/upload/efe/sz-2009-14.tsv.gz"
+    )
+    magnitude_path = (
+        "/home/ausgerechnet/corpora/embeddings/magnitude/"
+        "deWikiWord2Vec.magnitude"
+    )
+
+    return {
+        'registry_path': registry_path,
+        'corpus_name': corpus_name,
+        'meta_path': meta_path,
+        'magnitude_path': magnitude_path
+    }
