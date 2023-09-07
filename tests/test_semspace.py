@@ -1,12 +1,11 @@
 from pandas import read_csv
 
 from semmap.semspace import SemanticSpace
-import pytest
 
 
 def test_embeddings(brexit_corpus):
     semspace = SemanticSpace(brexit_corpus['magnitude_path'])
-    embeddings = semspace.embeddings(['angela', 'merkel'])
+    embeddings = semspace._embeddings(['angela', 'merkel'])
     print(embeddings)
 
 

@@ -10,7 +10,8 @@ from bokeh.plotting import figure, output_file, show
 # plotnine
 from plotnine import aes, geom_point, ggplot
 
-from semmap.semspace import SemanticSpace, read_ccc_tables
+from semmap.semspace import SemanticSpace
+from semmap.utils import read_ccc_tables
 
 
 def create_semspace():
