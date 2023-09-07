@@ -1,63 +1,15 @@
-from io import StringIO
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 
 from numpy import matmul, where
-from pandas import DataFrame, concat, read_csv
+from pandas import DataFrame, concat
 from pymagnitude import Magnitude
-# transformers
-from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import cosine_similarity
-from umap import UMAP
 
 
-def read_cqpweb_table(path_in):
+class SemanticSpace:
 
-    with open(path_in, "rt") as f_in:
-        table_rows = list()
-        for line in f_in:
-            if len(line.split("\t")) > 3:
-                table_rows.append(line)
-
-    df = read_csv(StringIO("".join(table_rows)), sep="\t", index_col=1)
-    df = df[['Stat 1.']]
-    df.columns = ['am']
-    df.index.name = 'item'
-    return df
-
-
-def read_cqpweb_tables(path1, path2, magnitude_path, names=None):
-
-    print("reading data")
-    df1 = read_cqpweb_table(path1)
-    df2 = read_cqpweb_table(path2)
-    print("%d items in first df, %d items in second df" % (len(df1), len(df2)))
-    if names is None:
-        names = ["1", "2"]
-    df = df1.join(df2, lsuffix="_"+names[0], rsuffix="_"+names[1], how='outer')
-
-    return df
-
-
-def read_ccc_table(path):
-
-    df = read_csv(path, sep="\t", index_col=0, dtype=str)
-
-    return df
-
-
-def read_ccc_tables(paths, names=None):
-
-    if names is None:
-        names = [p.split("/")[-1].split(".")[0] for p in paths]
-
-    dfs = [read_ccc_table(path) for path in paths]
-    df = concat(dfs, keys=names)
-
-    return df
-
-
-class SemanticSpace(object):
-
-    def __init__(self, magnitude_path):
+    def __init__(self, magnitude_path=None):
         """
 
         :param str magnitude_path: Path to a .pymagnitude embeddings file.
@@ -67,7 +19,7 @@ class SemanticSpace(object):
         self.database = Magnitude(magnitude_path)
         self.coordinates = None
 
-    def embeddings(self, tokens):
+    def _embeddings(self, items):
         """
         loads a subset of all embeddings into a DataFrame.
 
@@ -77,17 +29,15 @@ class SemanticSpace(object):
         :rtype: Dataframe
         """
 
-        embeddings = [
-            self.database.query(token) for token in tokens
-        ]
-        df = DataFrame(
-            index=tokens,
-            data=embeddings
-        )
+        if len(items) != len(set(items)):
+            raise ValueError('items must be unique')
+
+        embeddings = [self.database.query(item) for item in items]
+        df = DataFrame(index=items, data=embeddings)
 
         return df
 
-    def generate2d(self, tokens, method='tsne', parameters=None):
+    def generate2d(self, items, method='tsne', parameters=None):
         """creates 2d-coordinates for a list of tokens
 
         :param list tokens: list of tokens to generate coordinates for
@@ -99,14 +49,18 @@ class SemanticSpace(object):
         """
 
         # load vectors
-        embeddings = self.embeddings(tokens)
+        embeddings = self._embeddings(items)
 
         # if no vectors are loaded
         if embeddings.empty:
             return DataFrame()
 
+        # just in case
+        embeddings = embeddings.dropna()
+
         # set up transformer
         if method == 'tsne':
+            from sklearn.manifold import TSNE
             parameters_ = dict(
                 n_components=2,
                 perplexity=min(30.0, len(embeddings) - 1),
@@ -130,12 +84,11 @@ class SemanticSpace(object):
             transformer = TSNE(**parameters_)
 
         elif method == 'umap':
+            from umap import UMAP
             transformer = UMAP()
 
         else:
-            raise NotImplementedError(
-                'transformation "%s" not supported' % method
-            )
+            raise NotImplementedError(f'transformation "{method}" not supported')
 
         # generate 2d coordinates as data frame
         coordinates = DataFrame(
@@ -162,14 +115,9 @@ class SemanticSpace(object):
 
         """
 
-        # only for items that are not already in semantic space
-        new_items = [i for i in items if i not in self.coordinates.index]
-        if len(new_items) != len(items):
-            raise ValueError()
-
         # get embedding for item
-        item_embeddings = self.embeddings(items)
-        base_embeddings = self.embeddings(self.coordinates.index)
+        item_embeddings = self._embeddings(items)
+        base_embeddings = self._embeddings(self.coordinates.index)
 
         # cosine similaritiy matrix (n_items times n_base)
         sim = cosine_similarity(item_embeddings, base_embeddings)
@@ -178,8 +126,8 @@ class SemanticSpace(object):
         sim = where(sim < cutoff, 0, sim)
 
         # norm rows to use as convex combination
-        # TODO catch global 0 error
-        sim = (sim.T/sim.sum(axis=1)).T
+        simsum = sim.sum(axis=1)
+        sim = (sim.T/simsum).T
 
         # matrix multiplication takes care of linear combination
         new_coordinates = matmul(sim, self.coordinates)
@@ -192,9 +140,3 @@ class SemanticSpace(object):
         self.coordinates = concat([self.coordinates, new_coordinates])
 
         return new_coordinates
-
-    def visualize(self, size):
-        """
-        :param Series size: DataFrame containing label sizes
-        """
-        pass
