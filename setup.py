@@ -34,10 +34,10 @@ setup(
     ],
     python_requires='>=3.6.2',
     install_requires=[
-        "pandas>=1.1.5",
+        "pandas>=1.3.5",
         "pymagnitude-lite>=0.1.143",
-        "scikit-learn>=1.1.2",
-        "umap-learn>=0.5.0"
+        "scikit-learn>=1.3.0",
+        "umap-learn>=0.5.3"
     ],
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
