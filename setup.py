@@ -34,19 +34,19 @@ setup(
     ],
     python_requires='>=3.6.2',
     install_requires=[
-        "pandas>=1.3.5",
+        "pandas>=2.0",
         "pymagnitude-lite>=0.1.143",
         "scikit-learn>=1.3.0",
-        "umap-learn>=0.5.3"
+        "umap-learn>=0.5.5"
     ],
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
         "Development Status :: 3 - Alpha",
         "Operating System :: Unix",
         "Programming Language :: Python :: 3",
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
     ],
 )
