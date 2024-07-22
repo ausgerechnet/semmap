@@ -103,9 +103,10 @@ class SemanticSpace:
 
         return coordinates
 
-    def add(self, items, cutoff=.2):
+    def add(self, items, cutoff=0.2):
         """caclulates coordinates for new items based on their cosine
         similarity to the items spanning self.coordinates.
+        # TODO deduplicate
 
         :param str items: items to add
         :param float cutoff: cut-off value for cosine similarity
@@ -119,11 +120,11 @@ class SemanticSpace:
         item_embeddings = self._embeddings(items)
         base_embeddings = self._embeddings(self.coordinates.index)
 
-        # cosine similaritiy matrix (n_items times n_base)
+        # cosine similarity matrix (n_items times n_base)
         sim = cosine_similarity(item_embeddings, base_embeddings)
 
         # apply cut-off
-        sim = where(sim < cutoff, 0, sim)
+        # sim = where(sim < cutoff, 0, sim)
 
         # norm rows to use as convex combination
         simsum = sim.sum(axis=1)
