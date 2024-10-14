@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-from numpy import matmul, where
+from numpy import matmul
 from pandas import DataFrame, concat
 from pymagnitude import Magnitude
 from sklearn.metrics.pairwise import cosine_similarity
@@ -37,7 +37,7 @@ class SemanticSpace:
 
         return df
 
-    def generate2d(self, items, method='tsne', parameters=None):
+    def generate2d(self, items, method='tsne', parameters=None, normalise=False):
         """creates 2d-coordinates for a list of tokens
 
         :param list tokens: list of tokens to generate coordinates for
@@ -97,6 +97,10 @@ class SemanticSpace:
             columns=['x', 'y']
         )
         coordinates.index.name = 'item'
+
+        if normalise:
+            coordinates.x = coordinates.x / coordinates.x.abs().max()
+            coordinates.y = coordinates.y / coordinates.y.abs().max()
 
         # save coordinates
         self.coordinates = coordinates
