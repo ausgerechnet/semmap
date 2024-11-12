@@ -1,7 +1,11 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
+"""utils.py
+
+"""
 
 from io import StringIO
+
 from pandas import read_csv, concat
 
 
