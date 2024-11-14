@@ -38,13 +38,13 @@ class SemanticSpace:
 
         return df
 
-    def generate2d(self, items, method='tsne', parameters=None):
-        """creates 2d-coordinates for a list of tokens
+    def generate2d(self, items, method='tsne', parameters={}):
+        """Create 2d-coordinates for a list of items.
 
-        :param list tokens: list of tokens to generate coordinates for
-        :param str method: umap / tsne
+        :param list items: list of items to generate coordinates for
+        :param str method: ["tsne"] | "umap" | "openTSNE"
 
-        :return: pandas.Dataframe with x and y coordinates
+        :return: pandas.Dataframe with x and y coordinates, indexed by items
         :rtype: pandas.Dataframe
 
         """
@@ -55,9 +55,6 @@ class SemanticSpace:
         # if no vectors are loaded
         if embeddings.empty:
             return DataFrame()
-
-        # just in case
-        embeddings = embeddings.dropna()
 
         # set up transformer
         if method == 'tsne':
@@ -70,7 +67,7 @@ class SemanticSpace:
                 n_iter=1000,
                 n_iter_without_progress=300,
                 min_grad_norm=1e-07,
-                metric='euclidean',
+                metric='cosine',
                 metric_params=None,
                 init='pca',
                 verbose=0,
@@ -81,19 +78,25 @@ class SemanticSpace:
             )
             if parameters is not None:
                 parameters_.update(parameters)
-
             transformer = TSNE(**parameters_)
+            data2d = transformer.fit_transform(embeddings)
+
+        elif method == 'openTSNE':
+            from openTSNE import TSNE
+            transformer = TSNE()
+            data2d = transformer.fit(embeddings)
 
         elif method == 'umap':
             from umap import UMAP
             transformer = UMAP()
+            data2d = transformer.fit_transform(embeddings)
 
         else:
             raise NotImplementedError(f'transformation "{method}" not supported')
 
         # generate 2d coordinates as data frame
         coordinates = DataFrame(
-            data=transformer.fit_transform(embeddings),
+            data=data2d,
             index=embeddings.index,
             columns=['x', 'y']
         )

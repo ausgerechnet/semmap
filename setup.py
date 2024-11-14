@@ -37,7 +37,8 @@ setup(
         "pandas>=2.0",
         "pymagnitude-lite>=0.1.143",
         "scikit-learn>=1.3.0",
-        "umap-learn>=0.5.5"
+        "umap-learn>=0.5.5",
+        "opentsne>=1.0.2"
     ],
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
