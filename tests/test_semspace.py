@@ -1,20 +1,23 @@
 from pandas import read_csv
 from semmap.semspace import SemanticSpace
-import pytest
+# import pytest
+
+
+MAGNITUDE_PATH = "tests/data/deWiki-small.magnitude"
 
 
 # EMBEDDINGS
-def test_embeddings(brexit_corpus):
+def test_embeddings():
     items = ['angela', 'merkel']
-    semspace = SemanticSpace(brexit_corpus['magnitude_path'])
+    semspace = SemanticSpace()
     embeddings = semspace._embeddings(items)
     assert all(x in embeddings.index for x in items)
 
 
 # DIMENSIONALITY REDUCTION
-def test_generate2d_tsne(brexit_corpus):
+def test_generate2d_tsne():
 
-    semspace = SemanticSpace(brexit_corpus['magnitude_path'])
+    semspace = SemanticSpace(MAGNITUDE_PATH)
     base_items = list(read_csv("tests/data/base-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
     assert all(isinstance(x, str) for x in base_items)
     base_items = base_items[:100]
@@ -22,9 +25,9 @@ def test_generate2d_tsne(brexit_corpus):
     assert all(x in coordinates.index for x in base_items)
 
 
-def test_generate2d_openTSNE(brexit_corpus):
+def test_generate2d_openTSNE():
 
-    semspace = SemanticSpace(brexit_corpus['magnitude_path'])
+    semspace = SemanticSpace(MAGNITUDE_PATH)
     base_items = list(read_csv("tests/data/base-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
     assert all(isinstance(x, str) for x in base_items)
     base_items = base_items[:100]
@@ -32,9 +35,9 @@ def test_generate2d_openTSNE(brexit_corpus):
     assert all(x in coordinates.index for x in base_items)
 
 
-def test_generate2d_umap(brexit_corpus):
+def test_generate2d_umap():
 
-    semspace = SemanticSpace(brexit_corpus['magnitude_path'])
+    semspace = SemanticSpace(MAGNITUDE_PATH)
     base_items = list(read_csv("tests/data/base-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
     assert all(isinstance(x, str) for x in base_items)
     base_items = base_items[:100]
@@ -43,9 +46,9 @@ def test_generate2d_umap(brexit_corpus):
 
 
 # UPDATE
-def test_add_item(brexit_corpus):
+def test_add_item():
 
-    semspace = SemanticSpace(brexit_corpus['magnitude_path'])
+    semspace = SemanticSpace(MAGNITUDE_PATH)
     df = read_csv("tests/data/BREXIT_merkel-ll-2d.tsv", sep="\t", index_col=0)
     semspace.coordinates = df[['x', 'y']]
     assert 'test' not in semspace.coordinates
@@ -68,9 +71,9 @@ def test_add_item(brexit_corpus):
 
 
 # NORMALISATION
-def test_normalise(brexit_corpus):
+def test_normalise():
 
-    semspace = SemanticSpace(brexit_corpus['magnitude_path'], normalise=True)
+    semspace = SemanticSpace(MAGNITUDE_PATH, normalise=True)
     base_items = list(read_csv("tests/data/base-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
     new_items = list(read_csv("tests/data/new-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
 
