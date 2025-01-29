@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import gzip
+from argparse import ArgumentParser
+
+from annoy import AnnoyIndex
+
+from semmap.utils import Progress
+
+
+def create_index(path_in, path_names, path_annoy, n_trees=100, metric="angular"):
+
+    print("importing data and collecting item names")
+    with gzip.open(path_in, 'rt') as f, gzip.open(path_names, 'wt') as f_names:
+
+        line = f.readline()
+        row = line.rstrip().split(" ")
+        dim_row = int(row[0])
+        dim_col = int(row[1])
+
+        pb = Progress(dim_row)
+        index = AnnoyIndex(dim_col, metric=metric)
+        i = 0
+        for line in f:
+            # skip empty lines
+            if line.strip() == "":
+                continue
+            i += 1
+            row = line.split(" ")
+            item = row[0]
+            embedding = [float(e) for e in row[1:]]
+            if len(embedding) != dim_col:
+                print(embedding)
+                raise ValueError(f'embedding dimension {len(embedding)} does not match {dim_col} ')
+            index.add_item(i, embedding)
+            f_names.write(item + "\n")
+            pb.up()
+
+    print("building trees")
+    index.build(n_trees=n_trees, n_jobs=-1)
+
+    print("saving")
+    index.save(path_annoy)
+
+
+if __name__ == '__main__':
+
+    parser = ArgumentParser()
+    parser.add_argument('path_in', help="gzipped file with embeddings in C-txt format")
+    parser.add_argument('--path_names')
+    parser.add_argument('--path_annoy')
+    args = parser.parse_args()
+
+    path_in = args.path_in
+    path_names = args.path_names
+    path_annoy = args.path_annoy
+
+    if path_names is None:
+        path_names = f'{path_in}.idx.gz'
+
+    if path_names is None:
+        path_names = f'{path_in}.ann'
+
+    create_index(args.path_in, path_names, path_annoy)

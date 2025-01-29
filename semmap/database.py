@@ -5,10 +5,10 @@
 """
 
 
-from pandas import read_csv
-from annoy import AnnoyIndex
-
 import logging
+
+from annoy import AnnoyIndex
+from pandas import read_csv
 
 logger = logging.getLogger(__name__)
 

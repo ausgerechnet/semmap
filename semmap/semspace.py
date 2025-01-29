@@ -1,29 +1,28 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
+import random
+import sqlite3
+# import numpy as np
+from difflib import get_close_matches
+
+from annoy import AnnoyIndex
 from numpy import matmul
 from pandas import DataFrame, concat
 from pymagnitude import Magnitude
 from sklearn.metrics.pairwise import cosine_similarity
 
-import sqlite3
-from annoy import AnnoyIndex
-import random
-import numpy as np
-from difflib import get_close_matches
+# def find_neighbours(name, names, index, k=5):
 
+#     try:
+#         i = names.loc[names["value"] == name].index.values[0]
+#     except IndexError:
+#         raise NotImplementedError(f'no embedding stored for "{name}", implement dealing with OOV')
+#     similarities = index.get_nns_by_item(i, k, include_distances=True)
+#     neighbours = names.loc[similarities[0]]
+#     neighbours["distance"] = similarities[1]
 
-def find_neighbours(name, names, index, k=5):
-
-    try:
-        i = names.loc[names["value"] == name].index.values[0]
-    except IndexError:
-        raise NotImplementedError(f'no embedding stored for "{name}", implement dealing with OOV')
-    similarities = index.get_nns_by_item(i, k, include_distances=True)
-    neighbours = names.loc[similarities[0]]
-    neighbours["distance"] = similarities[1]
-
-    return neighbours
+#     return neighbours
 
 
 class SemanticSpace:
@@ -166,7 +165,7 @@ class SemanticSpace:
         return new_coordinates
 
 
-class SemMap2:
+class SemMap:
 
     def __init__(self, path_to_annoy, path_to_db):
 
@@ -194,22 +193,39 @@ class SemMap2:
         return dim, random_seed
 
     def _embeddings(self, items, similarity_threshold=0.8):
-        """Retrieve embeddings for given items, generating random vectors for missing ones."""
-        embeddings = {}
+        """Retrieve embeddings for given items, OOV via similarity (fallback: random vector)."""
+
+        embeddings = list()
+        oovs = list()
+
         for item in items:
-            # Get the index for the item if it exists
+
+            # get index for the item if it exists
             index = self._get_item_index(item)
             if index is not None:
-                embeddings[item] = self.index.get_item_vector(index)
+                embeddings = self.index.get_item_vector(index)
+                oov = None
+
             else:
-                # Find a similar item within the threshold
-                similar_item = self._find_similar_item(item, similarity_threshold)
-                if similar_item:
-                    similar_index = self._get_item_index(similar_item)
-                    embeddings[item] = self.index.get_item_vector(similar_index)
+
+                if similarity_threshold:
+                    # search for a similar item
+                    similar_item = self._find_similar_item(item, similarity_threshold)
+                    if similar_item:
+                        # use embedding of similar item
+                        similar_index = self._get_item_index(similar_item)
+                        embedding = self.index.get_item_vector(similar_index)
+                        oov = 'similar'
+                    else:
+                        # generate a random vector
+                        embedding = self._generate_random_vector()
+                        oov = 'random'
                 else:
-                    # Generate a random vector if no similar item found
-                    embeddings[item] = self._generate_random_vector()
+                    embedding = self._generate_random_vector()
+                    oov = 'random'
+
+            embeddings.append(embedding)
+            oovs.append(oov)
 
         df = DataFrame(index=items, data=embeddings)
 
