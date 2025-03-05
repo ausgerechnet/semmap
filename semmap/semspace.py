@@ -7,7 +7,7 @@ import sqlite3
 from difflib import get_close_matches
 
 from annoy import AnnoyIndex
-from numpy import matmul
+from numpy import matmul, where, errstate
 from pandas import DataFrame, concat
 from pymagnitude import Magnitude
 from sklearn.metrics.pairwise import cosine_similarity
@@ -27,7 +27,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 class SemanticSpace:
 
-    def __init__(self, magnitude_path=None):
+    def __init__(self, magnitude_path=None, normalise=False):
         """
 
         :param str magnitude_path: Path to a .pymagnitude embeddings file.
@@ -35,6 +35,7 @@ class SemanticSpace:
         """
 
         self.database = Magnitude(magnitude_path)
+        self.normalise = normalise
         self.coordinates = None
 
     def _embeddings(self, items):
@@ -55,13 +56,13 @@ class SemanticSpace:
 
         return df
 
-    def generate2d(self, items, method='tsne', parameters=None, normalise=False):
-        """creates 2d-coordinates for a list of tokens
+    def generate2d(self, items, method='tsne', parameters={}):
+        """Create 2d-coordinates for a list of items.
 
-        :param list tokens: list of tokens to generate coordinates for
-        :param str method: umap / tsne
+        :param list items: list of items to generate coordinates for
+        :param str method: ["tsne"] | "umap" | "openTSNE"
 
-        :return: pandas.Dataframe with x and y coordinates
+        :return: pandas.Dataframe with x and y coordinates, indexed by items
         :rtype: pandas.Dataframe
 
         """
@@ -72,9 +73,6 @@ class SemanticSpace:
         # if no vectors are loaded
         if embeddings.empty:
             return DataFrame()
-
-        # just in case
-        embeddings = embeddings.dropna()
 
         # set up transformer
         if method == 'tsne':
@@ -87,7 +85,7 @@ class SemanticSpace:
                 max_iter=1000,
                 n_iter_without_progress=300,
                 min_grad_norm=1e-07,
-                metric='euclidean',
+                metric='cosine',
                 metric_params=None,
                 init='pca',
                 verbose=0,
@@ -98,25 +96,31 @@ class SemanticSpace:
             )
             if parameters is not None:
                 parameters_.update(parameters)
-
             transformer = TSNE(**parameters_)
+            data2d = transformer.fit_transform(embeddings)
+
+        elif method == 'openTSNE':
+            from openTSNE import TSNE
+            transformer = TSNE()
+            data2d = transformer.fit(embeddings)
 
         elif method == 'umap':
             from umap import UMAP
             transformer = UMAP()
+            data2d = transformer.fit_transform(embeddings)
 
         else:
             raise NotImplementedError(f'transformation "{method}" not supported')
 
         # generate 2d coordinates as data frame
         coordinates = DataFrame(
-            data=transformer.fit_transform(embeddings),
+            data=data2d,
             index=embeddings.index,
             columns=['x', 'y']
         )
         coordinates.index.name = 'item'
 
-        if normalise:
+        if self.normalise:
             coordinates.x = coordinates.x / coordinates.x.abs().max()
             coordinates.y = coordinates.y / coordinates.y.abs().max()
 
@@ -125,10 +129,9 @@ class SemanticSpace:
 
         return coordinates
 
-    def add(self, items, cutoff=0.2):
+    def add(self, items, cutoff=0):
         """caclulates coordinates for new items based on their cosine
         similarity to the items spanning self.coordinates.
-        # TODO deduplicate
 
         :param str items: items to add
         :param float cutoff: cut-off value for cosine similarity
@@ -138,19 +141,24 @@ class SemanticSpace:
 
         """
 
-        # get embedding for item
+        if cutoff < 0 or cutoff > 1:
+            raise ValueError()
+
+        # get embeddings for items
         item_embeddings = self._embeddings(items)
         base_embeddings = self._embeddings(self.coordinates.index)
 
         # cosine similarity matrix (n_items times n_base)
         sim = cosine_similarity(item_embeddings, base_embeddings)
 
-        # apply cut-off
-        # sim = where(sim < cutoff, 0, sim)
+        # prune
+        sim = where(sim < cutoff, 0, sim)
 
         # norm rows to use as convex combination
-        simsum = sim.sum(axis=1)
-        sim = (sim.T/simsum).T
+        simsum = sim.sum(axis=1)  # can be 0 -- resulting rows will be replace by 1/sim.shape[1]
+        with errstate(divide='ignore', invalid='ignore'):
+            sim = (sim.T / simsum).T
+        sim[simsum == 0] = 1 / sim.shape[1]
 
         # matrix multiplication takes care of linear combination
         new_coordinates = matmul(sim, self.coordinates)
