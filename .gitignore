@@ -25,3 +25,6 @@ Pipfile*
 *CACHE*
 
 venv
+
+tests/data-annoy/
+tests/data-embeddings/
