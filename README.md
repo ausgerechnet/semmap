@@ -1,10 +1,10 @@
 # Semantic Map
 
-This is a Python3 module for creating and updating coordinates of semantic maps. (Semantic maps are 2-dimensional representations of 
+This is a Python3 module for creating and updating coordinates of semantic maps. Semantic maps are 2-dimensional representations of sets of word embedding, usually gained from collocation or keyword analyses.
 
-tackles two problems:
-- OOV in embeddings look-up (coordinates can be generated for all keys, including keys without embeddings)
-- iterative projection onto lower-dimensional co-oordinates (keys can be added to an existing projection)
+The module tackles two problems:
+- OOV in embeddings look-up (coordinates can be generated for all items, including items without embeddings)
+- iterative projection onto lower-dimensional co-ordinates (items can be added to an existing projection)
 
 ## OOV functionality
 - construct character n-gram embeddings during training time (e.g. FastText)
@@ -12,7 +12,7 @@ tackles two problems:
   + but: pre-computed embeddings might come without n-gram character encodings
 - pymagnitude:
   + construct character n-gram embeddings during import time
-  + center and normalise randomly (but reproducible)
+  + center and normalise randomly (but reproducibly)
   + interpolate with in-vocabulary words via string similarity
   + improved string similarity: morphology-aware for English, shrinking repeated characters, ...
 
@@ -25,7 +25,6 @@ tackles two problems:
 NB: no functionality for context-aware embeddings (ELMo, BERT)
 
 ## Features
-
 - creation of embeddings via `transformers`
   + input: .tsv
   + output: embeddings-keys.txt, embeddings-representations.tsv → embeddings.tsv
