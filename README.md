@@ -40,8 +40,12 @@ NB: no functionality for context-aware embeddings (ELMo, BERT)
 - adding points via cosine similarity
 - iterative dimensionality reduction via `openTSNE` and `umap-learn`
 
-
 ## Roadmap
 
 - [ ] iterative projections
 - [ ] PyPI
+- [x] github tests
+- [ ] use openTSNE instead of sklearn -- fails when there's many items ("IndexError: Vector has wrong length (expected 300, got 1000)")
+- [ ] iterative projection (add-item) with openTSNE and UMAP
+- [ ] OOV
+- [ ] annoy instead of pymagnitude

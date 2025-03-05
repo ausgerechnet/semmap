@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+import gzip
+
+from semmap.embeddings import create_embeddings
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description="create LLM embeddings",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument("path_in", help="gzipped text file with one item per line, e.g. from 'cwb-lexdecode -P P_ATT CWB_ID'")
+    parser.add_argument("--model", default="paraphrase-multilingual-MiniLM-L12-v2", help="sentence-transformers model")
+    parser.add_argument("--path_out", default=None, help="output file in gzipped C-txt format")
+    args = parser.parse_args()
+
+    path_in = args.path_in
+    model = args.model
+    path_out = args.path_out
+
+    if path_out is None:
+        path_out = f'{path_in}.voc.gz'
+
+    with gzip.open(path_in, "rt") as f:
+        items = f.read().rstrip().split("\n")
+
+    create_embeddings(items, model, path_out)

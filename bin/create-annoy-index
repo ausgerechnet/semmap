@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+
+from semmap.embeddings import create_annoy_index
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description="create Annoy index",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('path_in', help="gzipped file with embeddings in C-txt format")
+    parser.add_argument('--path_names')
+    parser.add_argument('--path_annoy')
+    parser.add_argument('--n_trees', default=100)
+    parser.add_argument('--metric', default='angular')
+    args = parser.parse_args()
+
+    path_in = args.path_in
+    path_names = args.path_names
+    path_annoy = args.path_annoy
+
+    if path_names is None:
+        path_names = f'{path_in}.ann.idx.gz'
+
+    if path_annoy is None:
+        path_annoy = f'{path_in}.ann'
+
+    create_annoy_index(path_in, path_names, path_annoy, args.n_trees, args.metric)
