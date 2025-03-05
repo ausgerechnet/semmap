@@ -10,6 +10,9 @@ here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, 'README.md'), mode='rt', encoding='utf-8') as f:
     long_description = f.read()
 
+with open(os.path.join(here, 'requirements.txt'), mode='rt', encoding='utf-8') as f:
+    install_requires = f.read().strip().split("\n")
+
 # version
 version = {}
 with open(os.path.join(here, 'semmap', 'version.py'), mode='rt', encoding='utf-8') as f:
@@ -29,24 +32,16 @@ setup(
     packages=[
         'semmap'
     ],
-    scripts=[
-        'bin/semmap-create',
-    ],
     python_requires='>=3.6.2',
-    install_requires=[
-        "pandas>=2.0",
-        "pymagnitude-lite>=0.1.143",
-        "scikit-learn>=1.3.0",
-        "umap-learn>=0.5.5"
-    ],
+    install_requires=install_requires,
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
         "Development Status :: 3 - Alpha",
         "Operating System :: Unix",
         "Programming Language :: Python :: 3",
-        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12'
     ],
 )
