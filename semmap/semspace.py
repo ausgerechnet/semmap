@@ -84,7 +84,7 @@ class SemanticSpace:
                 perplexity=min(30.0, len(embeddings) - 1),
                 early_exaggeration=12.0,
                 learning_rate='auto',
-                n_iter=1000,
+                max_iter=1000,
                 n_iter_without_progress=300,
                 min_grad_norm=1e-07,
                 metric='euclidean',
