@@ -1,35 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import argparse
 import gzip
-from argparse import ArgumentParser
 
-from sentence_transformers import SentenceTransformer
-
-from semmap.utils import Progress
-
-
-def create_embeddings(items, model, path_out):
-
-    print(f"loading model ({model})")
-    encoder = SentenceTransformer(model)
-
-    print(f"creating embeddings for {len(items)} items")
-    embeddings = encoder.encode(items)
-
-    print(f"writing to '{path_out}'")
-    pb = Progress(len(items))
-    with gzip.open(path_out, "wt") as f:
-        f.write(f"{str(len(embeddings))} {str(len(embeddings[0]))}\n")
-        for item, embedding in zip(items, embeddings):
-            f.write(item + " ")
-            f.write(" ".join([str(i) for i in embedding.tolist()]) + "\n")
-            pb.up()
+from semmap.embeddings import create_embeddings
 
 
 if __name__ == '__main__':
 
-    parser = ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="create LLM embeddings",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument("path_in", help="gzipped text file with one item per line, e.g. from 'cwb-lexdecode -P P_ATT CWB_ID'")
     parser.add_argument("--model", default="paraphrase-multilingual-MiniLM-L12-v2", help="sentence-transformers model")
     parser.add_argument("--path_out", default=None, help="output file in gzipped C-txt format")
