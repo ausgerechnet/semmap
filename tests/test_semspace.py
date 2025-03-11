@@ -18,7 +18,7 @@ def test_embeddings():
 def test_generate2d_tsne():
 
     semspace = SemanticSpace(MAGNITUDE_PATH)
-    base_items = list(read_csv("tests/data/base-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
+    base_items = open("tests/data/base-items.voc", "rt").read().strip().split("\n")
     assert all(isinstance(x, str) for x in base_items)
     base_items = base_items[:100]
     coordinates = semspace.generate2d(base_items, method='tsne')
@@ -28,7 +28,7 @@ def test_generate2d_tsne():
 def test_generate2d_openTSNE():
 
     semspace = SemanticSpace(MAGNITUDE_PATH)
-    base_items = list(read_csv("tests/data/base-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
+    base_items = open("tests/data/base-items.voc", "rt").read().strip().split("\n")
     assert all(isinstance(x, str) for x in base_items)
     base_items = base_items[:100]
     coordinates = semspace.generate2d(base_items, method='openTSNE')
@@ -38,7 +38,7 @@ def test_generate2d_openTSNE():
 def test_generate2d_umap():
 
     semspace = SemanticSpace(MAGNITUDE_PATH)
-    base_items = list(read_csv("tests/data/base-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
+    base_items = open("tests/data/base-items.voc", "rt").read().strip().split("\n")
     assert all(isinstance(x, str) for x in base_items)
     base_items = base_items[:100]
     coordinates = semspace.generate2d(base_items, method='umap')
@@ -74,8 +74,8 @@ def test_add_item():
 def test_normalise():
 
     semspace = SemanticSpace(MAGNITUDE_PATH, normalise=True)
-    base_items = list(read_csv("tests/data/base-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
-    new_items = list(read_csv("tests/data/new-items.tsv", sep="\t", index_col=0, keep_default_na=False).index)
+    base_items = open("tests/data/base-items.voc", "rt").read().strip().split("\n")
+    new_items = open("tests/data/new-items.voc", "rt").read().strip().split("\n")
 
     semspace.generate2d(base_items)
     wrong = semspace.coordinates.loc[(semspace.coordinates.x.abs() > 1) | (semspace.coordinates.y.abs() > 1)]
