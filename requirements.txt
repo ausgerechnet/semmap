@@ -1,6 +1,10 @@
-pandas>=2.0
+numpy>=2.0,<3.0
+pandas>=2.2.2,<3.0
+torch>=2.6.0
 scikit-learn>=1.5.0
 umap-learn>=0.5.7
 annoy>=1.0
 pymagnitude-lite>=0.1.143
 opentsne>=1.0.1
+transformers
+sentence_transformers
