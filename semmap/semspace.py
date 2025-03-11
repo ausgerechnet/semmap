@@ -1,28 +1,10 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import random
-import sqlite3
-# import numpy as np
-from difflib import get_close_matches
-
-from annoy import AnnoyIndex
 from numpy import matmul, where, errstate
 from pandas import DataFrame, concat
 from pymagnitude import Magnitude
 from sklearn.metrics.pairwise import cosine_similarity
-
-# def find_neighbours(name, names, index, k=5):
-
-#     try:
-#         i = names.loc[names["value"] == name].index.values[0]
-#     except IndexError:
-#         raise NotImplementedError(f'no embedding stored for "{name}", implement dealing with OOV')
-#     similarities = index.get_nns_by_item(i, k, include_distances=True)
-#     neighbours = names.loc[similarities[0]]
-#     neighbours["distance"] = similarities[1]
-
-#     return neighbours
 
 
 class SemanticSpace:
@@ -171,98 +153,3 @@ class SemanticSpace:
         self.coordinates = concat([self.coordinates, new_coordinates])
 
         return new_coordinates
-
-
-class SemMap:
-
-    def __init__(self, path_to_annoy, path_to_db):
-
-        self.path_to_annoy = path_to_annoy
-        self.path_to_db = path_to_db
-
-        # Connect to the SQLite database
-        self.conn = sqlite3.connect(self.path_to_db)
-        self.cursor = self.conn.cursor()
-
-        # Load settings from the database
-        self.dim, self.random_seed = self._load_settings()
-
-        # Initialize Annoy index
-        self.index = AnnoyIndex(self.dim, 'angular')
-        self.index.load(self.path_to_annoy)
-
-        # Seed the random number generator
-        random.seed(self.random_seed)
-
-    def _load_settings(self):
-        """Load dimension and random seed settings from the database."""
-        self.cursor.execute("SELECT dim, random_seed FROM settings")
-        dim, random_seed = self.cursor.fetchone()
-        return dim, random_seed
-
-    def _embeddings(self, items, similarity_threshold=0.8):
-        """Retrieve embeddings for given items, OOV via similarity (fallback: random vector)."""
-
-        embeddings = list()
-        oovs = list()
-
-        for item in items:
-
-            # get index for the item if it exists
-            index = self._get_item_index(item)
-            if index is not None:
-                embeddings = self.index.get_item_vector(index)
-                oov = None
-
-            else:
-
-                if similarity_threshold:
-                    # search for a similar item
-                    similar_item = self._find_similar_item(item, similarity_threshold)
-                    if similar_item:
-                        # use embedding of similar item
-                        similar_index = self._get_item_index(similar_item)
-                        embedding = self.index.get_item_vector(similar_index)
-                        oov = 'similar'
-                    else:
-                        # generate a random vector
-                        embedding = self._generate_random_vector()
-                        oov = 'random'
-                else:
-                    embedding = self._generate_random_vector()
-                    oov = 'random'
-
-            embeddings.append(embedding)
-            oovs.append(oov)
-
-        df = DataFrame(index=items, data=embeddings)
-
-        return df
-
-    def _get_item_index(self, item):
-        """Retrieve the index of an item from the database."""
-        self.cursor.execute("SELECT index FROM items WHERE item = ?", (item,))
-        result = self.cursor.fetchone()
-        return result[0] if result else None
-
-    def _find_similar_item(self, item, threshold):
-        """Find a similar item in the database based on string similarity."""
-        self.cursor.execute("SELECT item FROM items")
-        all_items = [row[0] for row in self.cursor.fetchall()]
-
-        # Get the closest matches within the threshold
-        matches = get_close_matches(item, all_items, n=1, cutoff=threshold)
-        return matches[0] if matches else None
-
-    def _generate_random_vector(self, item):
-        """Generate a reproducible random vector for the given item using the random seed."""
-
-        item_seed = hash(item) + self.random_seed
-        random.seed(item_seed)
-
-        # Generate and return a random vector
-        return [random.uniform(-1, 1) for _ in range(self.dim)]
-
-    def close(self):
-        """Close the database connection."""
-        self.conn.close()

@@ -3,17 +3,18 @@
 
 import gzip
 
-from annoy import AnnoyIndex
 from pandas import DataFrame
 from sentence_transformers import SentenceTransformer
 from transformers import BertTokenizerFast, BertModel
 import torch
 
-from semmap.utils import Progress
+from .utils import Progress
 
 
 def create_contextual_embeddings(tokens, model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'):
+    """create embeddings from list of tokens
 
+    """
     # Load pre-trained model and tokenizer
     print(f"loading model ({model_name})")
     tokenizer = BertTokenizerFast.from_pretrained(model_name)
@@ -66,8 +67,10 @@ def create_contextual_embeddings(tokens, model_name='sentence-transformers/parap
     return df_tokens, df_subtokens
 
 
-def create_embeddings(items, model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', path_out=None, mode='wt'):
+def create_embeddings(items, model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2', path_out=None, mode='wt', as_is=False):
+    """create context-free embeddings from list of types
 
+    """
     print(f"loading model ({model_name})")
     encoder = SentenceTransformer(model_name)
 
@@ -75,6 +78,8 @@ def create_embeddings(items, model_name='sentence-transformers/paraphrase-multil
     embeddings = encoder.encode(items)
 
     if not path_out:
+        if as_is:
+            return embeddings
         df_embeddings = DataFrame(index=items, data=embeddings)
         df_embeddings.index.name = 'token'
         return df_embeddings
@@ -89,8 +94,12 @@ def create_embeddings(items, model_name='sentence-transformers/paraphrase-multil
             pb.up()
 
 
-def read_fasttext_items(path_in):
+def read_text_embeddings(path_in):
+    """read from file where
+    - first line contains number of rows and number of dimensions
+    - each following line contains item and vector
 
+    """
     with gzip.open(path_in, 'rt') as f:
 
         line = f.readline()
@@ -99,6 +108,7 @@ def read_fasttext_items(path_in):
         dim_col = int(row[1])
 
         items = list()
+        vectors = list()
         pb = Progress(dim_row)
         for line in f:
             # skip empty lines
@@ -107,48 +117,11 @@ def read_fasttext_items(path_in):
             row = line.split(" ")
             dims = len(row)
             if not dims >= dim_col + 1:
-                print(row)
-                raise ValueError('line does not have enough dimensions')
+                raise ValueError(f'line does not have enough dimensions:\n{row}')
             dim_token = dims - dim_col
             item = " ".join(row[:dim_token])
             items.append(item)
+            vectors.append(row[dim_token:])
             pb.up()
 
-        return items
-
-
-def create_annoy_index(path_in, path_names, path_annoy, n_trees=100, metric="angular"):
-
-    print("importing data and collecting item names")
-    with gzip.open(path_in, 'rt') as f, gzip.open(path_names, 'wt') as f_names:
-
-        line = f.readline()
-        row = line.rstrip().split(" ")
-        dim_row = int(row[0])
-        dim_col = int(row[1])
-
-        pb = Progress(dim_row)
-        index = AnnoyIndex(dim_col, metric=metric)
-        i = 0
-        for line in f:
-            # skip empty lines
-            if line.strip() == "":
-                continue
-            i += 1
-            row = line.split(" ")
-            dims = len(row)
-            if not dims >= dim_col + 1:
-                print(row)
-                raise ValueError('line does not have enough dimensions')
-            dim_token = dims - dim_col
-            item = " ".join(row[:dim_token])
-            embedding = [float(e) for e in row[dim_token:]]
-            index.add_item(i, embedding)
-            f_names.write(item + "\n")
-            pb.up()
-
-    print("building trees")
-    index.build(n_trees=n_trees, n_jobs=-1)
-
-    print("saving annoy index")
-    index.save(path_annoy)
+    return items, vectors

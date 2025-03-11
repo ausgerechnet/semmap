@@ -26,5 +26,7 @@ Pipfile*
 
 venv
 
-tests/data-annoy/
 tests/data-embeddings/
+tests/data/*.annoy
+tests/data/*.semmap
+tests/data/*.sqlite
