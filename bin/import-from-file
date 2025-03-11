@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+
+from semmap.embeddings import read_text_embeddings
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description="create Annoy index from text file with embeddings",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('path_in', help="gzipped file with embeddings in fasttext format")
+    parser.add_argument('--path_settings')
+    parser.add_argument('--n_trees', default=100)
+    parser.add_argument('--metric', default='angular')
+    parser.add_argument('--model_name', default='imported')
+    args = parser.parse_args()
+
+    embeddings = read_text_embeddings(path_in)
+    create_annoy_index(path_in, path_names, path_annoy, args.n_trees, args.metric)

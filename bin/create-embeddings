@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+import os
+
+from semmap.embeddings import create_embeddings
+from semmap.embeddings_store import create_embeddings_store
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description="create embeddings store (three files)",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('path_in', help="text file with one item per line, e.g. from 'cwb-lexdecode -P P_ATT CWB_ID'")
+    parser.add_argument('--model_name', default='sentence-transformers/paraphrase-multilingual-mpnet-base-v2', help="")
+    parser.add_argument('--path_settings', help="path to semmap settings file")
+    parser.add_argument('--path_db', help="path to database of items")
+    parser.add_argument('--path_annoy', help="path to annoy index")
+    parser.add_argument('--n_trees', default=100, help="")
+    parser.add_argument('--metric', default='angular', help="")
+    parser.add_argument('--random_seed', default=42, help="")
+    parser.add_argument('--as_text', action="store_true", default=False, help="store only as gzipped text file?")
+    parser.add_argument('--path_text_out', default=None, help="path to text file")
+    args = parser.parse_args()
+
+    if args.as_text:
+        path_out = f'{args.path_in}.txt.gz' if args.path_text_out is None else args.path_text_out
+        with open(args.path_in, "rt") as f:
+            items = f.read().rstrip().split("\n")
+        create_embeddings(items, args.model_name, path_out)
+
+    path_settings = f'{args.path_in}.semmap' if args.path_settings is None else args.path_settings
+    path_db = f'{args.path_in}.sqlite' if args.path_db is None else args.path_db
+    path_annoy = f'{args.path_in}.annoy' if args.path_annoy is None else args.path_annoy
+
+    if os.path.exists(path_settings) or os.path.exists(path_db) or os.path.exists(path_annoy):
+        raise FileExistsError()
+
+    create_embeddings_store(args.path_in, path_settings, path_db, path_annoy,
+                            args.n_trees, args.metric, args.model_name, args.random_seed)
