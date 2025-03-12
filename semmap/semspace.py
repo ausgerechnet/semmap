@@ -52,7 +52,7 @@ class SemanticSpace:
         :param list positive: list of positive items ("similar to")
         :param list negative: list of negative items ("not similar to")
 
-        :return: DataFrame of items and similarities, ordered by similarity
+        :return: DataFrame of items and similarities, ordered by decreasing similarity
         :rtype: DataFrame
         """
 
