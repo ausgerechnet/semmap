@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from difflib import get_close_matches
+from hashlib import sha256
 import json
 import random
 import sqlite3
@@ -161,7 +162,7 @@ class EmbeddingsStore:
     def _generate_random_vector(self, item):
         """Generate a reproducible random vector for the given item using the random seed."""
 
-        item_seed = hash(item) + self.random_seed
+        item_seed = int(sha256(item.encode('utf-8')).hexdigest(), 16) + self.random_seed
         random.seed(item_seed)
 
         # Generate and return a random vector
@@ -263,7 +264,7 @@ class EmbeddingsStore:
 
         df = DataFrame(index=items, data=vectors)
         if oov_info:
-            df['oov'] = oov
+            df['oov'] = oovs
 
         return df
 
@@ -288,16 +289,21 @@ class EmbeddingsStore:
         we mimic magnitude behaviour here: we search for the closest vectors to the centroid of given vectors
         """
 
+        pos_vecs = neg_vecs = []
         if len(positive) > 0:
-            vecs = self.get_embeddings(positive).values
-        else:
-            vecs = []
+            pos_vecs = self.get_embeddings(positive, oov_info=True)
+            pos_vecs = pos_vecs.loc[pos_vecs['oov'] != "random"].drop('oov', axis=1).values
+        vecs = pos_vecs
 
         if len(negative) > 0:
-            vecs += -1.0 * self.get_embeddings(negative).values
+            neg_vecs = self.get_embeddings(negative, oov_info=True)
+            neg_vecs = neg_vecs.loc[neg_vecs['oov'] != "random"].drop('oov', axis=1).values
+            neg_vecs = -1.0 * neg_vecs
+            vecs = np.vstack([pos_vecs, neg_vecs])
 
         mean_vector = np.mean(vecs, axis=0)
-        idx_neighbours, distances = self.index.get_nns_by_vector(mean_vector, n=topn, include_distances=True)
+
+        idx_neighbours, distances = self.index.get_nns_by_vector(mean_vector, n=topn, search_k=1000, include_distances=True)
         neighbours = self._get_items_by_index(idx_neighbours)
 
-        return [(neighbour[1], distance) for (neighbour, distance) in zip(neighbours, distances)]
+        return [(neighbour[1], 1 - distance ** 2 / 2) for (neighbour, distance) in zip(neighbours, distances)]

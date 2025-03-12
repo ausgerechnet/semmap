@@ -14,7 +14,8 @@ class SemanticSpace:
     def __init__(self, path=None, normalise=False):
         """
 
-        :param str magnitude_path: Path to a .pymagnitude embeddings file.
+        :param str path: path to ".magnitude" or ".semmap" file
+        :param boolean normalise: restrict coordinates to [-1,1]^2?
 
         """
 
@@ -29,13 +30,12 @@ class SemanticSpace:
         self.coordinates = None
 
     def _embeddings(self, items):
-        """
-        loads a subset of all embeddings into a DataFrame.
+        """Get embeddings of provided items as a DataFrame.
 
-        :param set tokens: set of tokens to get embeddings for
+        :param list items: set of tokens to get embeddings for
 
-        :return: Dataframe containing embeddings
-        :rtype: Dataframe
+        :return: DataFrame containing embeddings
+        :rtype: DataFrame
         """
 
         if len(items) != len(set(items)):
@@ -46,15 +46,31 @@ class SemanticSpace:
 
         return df
 
+    def most_similar(self, positive, negative=[], n=10):
+        """Get similar items of the ones provided.
+
+        :param list positive: list of positive items ("similar to")
+        :param list negative: list of negative items ("not similar to")
+
+        :return: DataFrame of items and similarities, ordered by similarity
+        :rtype: DataFrame
+        """
+
+        neighbours = self.database.most_similar(positive=positive, negative=negative, topn=n)
+        items = [n[0] for n in neighbours]
+        similarities = [n[1] for n in neighbours]
+
+        return DataFrame({'item': items, 'similarity': similarities}).set_index('item')
+
     def generate2d(self, items, method='tsne', parameters={}):
-        """Create 2d-coordinates for a list of items.
+        """Create 2d-coordinates for list of items.
 
         :param list items: list of items to generate coordinates for
         :param str method: ["tsne"] | "umap" | "openTSNE"
+        :param dict parameters: parameters to pass to dim reduction algorithm
 
-        :return: pandas.Dataframe with x and y coordinates, indexed by items
-        :rtype: pandas.Dataframe
-
+        :return: DataFrame with x and y coordinates, indexed by items
+        :rtype: DataFrame
         """
 
         # load vectors
@@ -69,7 +85,7 @@ class SemanticSpace:
             from sklearn.manifold import TSNE
             parameters_ = dict(
                 n_components=2,
-                perplexity=min(30.0, len(embeddings) - 1),
+                perplexity=min(25, len(embeddings) - 1),
                 early_exaggeration=12.0,
                 learning_rate='auto',
                 max_iter=1000,
@@ -128,7 +144,6 @@ class SemanticSpace:
 
         :return: new coordinates (columns 'x' and 'y', indexed by items)
         :rtype: DataFrame
-
         """
 
         if cutoff < 0 or cutoff > 1:
