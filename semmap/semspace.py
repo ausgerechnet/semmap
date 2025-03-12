@@ -6,17 +6,25 @@ from pandas import DataFrame, concat
 from pymagnitude import Magnitude
 from sklearn.metrics.pairwise import cosine_similarity
 
+from .embeddings_store import EmbeddingsStore
+
 
 class SemanticSpace:
 
-    def __init__(self, magnitude_path=None, normalise=False):
+    def __init__(self, path=None, normalise=False):
         """
 
         :param str magnitude_path: Path to a .pymagnitude embeddings file.
 
         """
 
-        self.database = Magnitude(magnitude_path)
+        if path is None or path.endswith("magnitude"):
+            self.database = Magnitude(path)
+        elif path.endswith("semmap"):
+            self.database = EmbeddingsStore(path)
+        else:
+            raise ValueError()
+
         self.normalise = normalise
         self.coordinates = None
 
