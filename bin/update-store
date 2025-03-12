@@ -14,7 +14,9 @@ if __name__ == '__main__':
     )
     parser.add_argument('path_settings', help="path to semmap settings")
     parser.add_argument('path_in', help="file with new items")
+    parser.add_argument("--force", "-f", default=False, action='store_true',
+                        help="overwrite existing files without asking?")
     args = parser.parse_args()
 
     store = EmbeddingsStore(args.path_settings)
-    store.update(args.path_in, force=False)
+    store.update(args.path_in, force=args.force)
