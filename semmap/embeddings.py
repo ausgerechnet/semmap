@@ -3,10 +3,10 @@
 
 import gzip
 
+import torch
 from pandas import DataFrame
 from sentence_transformers import SentenceTransformer
-from transformers import BertTokenizerFast, BertModel
-import torch
+from transformers import BertModel, BertTokenizerFast
 
 from .utils import Progress
 

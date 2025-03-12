@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from difflib import get_close_matches
-from hashlib import sha256
 import json
+import os
 import random
 import sqlite3
-import os
+from difflib import get_close_matches
+from hashlib import sha256
 
+import numpy as np
 from annoy import AnnoyIndex
 from pandas import DataFrame
-import numpy as np
 
 from .embeddings import create_embeddings
 from .utils import Progress
