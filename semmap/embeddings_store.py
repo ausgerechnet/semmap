@@ -227,7 +227,7 @@ class EmbeddingsStore:
 
         return EmbeddingsStore(self.path_settings)
 
-    def get_embeddings(self, items, similarity_threshold=None, oov_info=False):
+    def get_embeddings(self, items, similarity_threshold=None, oov_info=False, as_is=False):
         """Retrieve embeddings for given items, OOV via string similarity (fallback: random vector)."""
 
         vectors = list()
@@ -262,11 +262,13 @@ class EmbeddingsStore:
             vectors.append(vector)
             oovs.append(oov)
 
-        df = DataFrame(index=items, data=vectors)
-        if oov_info:
-            df['oov'] = oovs
+        if not as_is:
+            # DataFrame construction takes some time and should never be done if len(items) == 1
+            vectors = DataFrame(index=items, data=vectors)
+            if oov_info:
+                vectors['oov'] = oovs
 
-        return df
+        return vectors
 
     def find_neighbours(self, item, n=10):
 
@@ -279,9 +281,9 @@ class EmbeddingsStore:
         return [(neighbour[1], distance) for (neighbour, distance) in zip(neighbours, distances)]
 
     def query(self, item):
-        """alias for get_embeddings()"""
+        """alias for get_embeddings() for single items"""
 
-        return self.get_embeddings([item]).loc[item].values
+        return self.get_embeddings([item], as_is=True)[0]
 
     def most_similar(self, positive, negative=[], topn=10):
         """alias for find_neighbours()

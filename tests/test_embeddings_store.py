@@ -1,5 +1,4 @@
 from semmap.embeddings_store import create_embeddings_store, EmbeddingsStore
-import numpy as np
 import os
 import pytest
 
@@ -43,11 +42,12 @@ def test_get_embeddings():
     store.get_embeddings(["tion2sdaf"], similarity_threshold=.8, oov_info=True)[[1, 'oov']]
 
 
+@pytest.mark.now
 def test_query():
     path_settings = "tests/data/germaparl.semmap"
     store = EmbeddingsStore(path_settings)
     embeddings = store.query("CDU")
-    assert isinstance(embeddings, np.ndarray)
+    assert isinstance(embeddings, list)
 
 
 def test_random_reproducible():
@@ -71,7 +71,6 @@ def test_get_embeddings_oov():
     assert oovs.loc['rennen'] == "random"
 
 
-@pytest.mark.now
 def test_most_similar():
     path_settings = "tests/data/germaparl.semmap"
     store = EmbeddingsStore(path_settings)
