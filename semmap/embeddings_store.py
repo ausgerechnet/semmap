@@ -265,7 +265,7 @@ class EmbeddingsStore:
                     vector = self._create_embedding(item)
                     # similar_index = self.index.get_nns_by_vector(vector, 1)[0]
                     # vector = self.index.get_item_vector(similar_index)
-                    oov = 'create-new'
+                    oov = 'create'
 
                 elif similarity_threshold:
                     # search for a similar item

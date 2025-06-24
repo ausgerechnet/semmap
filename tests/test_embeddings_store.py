@@ -36,10 +36,10 @@ def test_get_embeddings():
     path_settings = "tests/data/germaparl.semmap"
     store = EmbeddingsStore(path_settings)
 
-    store.get_embeddings(["gehen"], oov_info=True)[[1, 'oov']]
-    store.get_embeddings(["gehes"], similarity_threshold=.8, oov_info=True)[[1, 'oov']]
-    store.get_embeddings(["gehend"], similarity_threshold=.8, oov_info=True)[[1, 'oov']]
-    store.get_embeddings(["tion2sdaf"], similarity_threshold=.8, oov_info=True)[[1, 'oov']]
+    store.get_embeddings(["gehen"], add_oov_info=True)[[1, 'oov']]
+    store.get_embeddings(["gehes"], similarity_threshold=.8, add_oov_info=True)[[1, 'oov']]
+    store.get_embeddings(["gehend"], similarity_threshold=.8, add_oov_info=True)[[1, 'oov']]
+    store.get_embeddings(["tion2sdaf"], similarity_threshold=.8, add_oov_info=True)[[1, 'oov']]
 
 
 @pytest.mark.now
@@ -65,10 +65,10 @@ def test_get_embeddings_oov():
     path_settings = "tests/data/germaparl.semmap"
     store = EmbeddingsStore(path_settings)
     positive = ["gehen", "rennen", "laufen"]
-    vecs = store.get_embeddings(positive, oov_info=True)
+    vecs = store.get_embeddings(positive, add_oov_info=True)
     oovs = vecs['oov']
     assert oovs.loc['gehen'] == oovs.loc['laufen'] is False
-    assert oovs.loc['rennen'] == "random"
+    assert oovs.loc['rennen'] == "create"
 
 
 def test_most_similar():
