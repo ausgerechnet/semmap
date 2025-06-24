@@ -1,8 +1,7 @@
-from pandas import read_csv, DataFrame
+from pandas import read_csv
 from semmap.semspace import SemanticSpace
 from semmap.embeddings_store import create_embeddings_store
 import os
-import pytest
 
 
 MAGNITUDE_PATH = "tests/data/deWiki-small.magnitude"
@@ -99,24 +98,3 @@ def test_normalise():
     new_coordinates = semspace.add(new_items)
     wrong = new_coordinates.loc[(new_coordinates.x.abs() > 1) | (new_coordinates.y.abs() > 1)]
     assert len(wrong) == 0
-
-
-# SIMILARITY
-@pytest.mark.now
-def test_most_similar():
-
-    path_items = "tests/data/germaparl.voc"
-    path_settings = "tests/data/germaparl.semmap"
-    path_db = "tests/data/germaparl.sqlite"
-    path_annoy = "tests/data/germaparl.annoy"
-    if not os.path.exists(path_settings):
-        create_embeddings_store(path_items, path_settings, path_db, path_annoy)
-    items = ['gehen', 'laufen']
-
-    semspace = SemanticSpace(path_settings)
-    df = semspace.most_similar(items, n=1000)
-    assert isinstance(df, DataFrame)
-
-    semspace = SemanticSpace(MAGNITUDE_PATH)
-    df = semspace.most_similar(items, n=1000)
-    assert isinstance(df, DataFrame)

@@ -11,6 +11,7 @@ from hashlib import sha256
 import numpy as np
 from annoy import AnnoyIndex
 from pandas import DataFrame
+from sentence_transformers import SentenceTransformer
 
 from .embeddings import create_embeddings
 from .utils import Progress
@@ -129,6 +130,9 @@ class EmbeddingsStore:
         self.index = AnnoyIndex(self.dim, self.metric)
         self.index.load(self.path_annoy)
 
+        # set encoder to None (will be loaded on demand)
+        self._encoder = None
+
         # use random seed
         random.seed(self.random_seed)
 
@@ -167,6 +171,13 @@ class EmbeddingsStore:
 
         # Generate and return a random vector
         return [random.uniform(-1, 1) for _ in range(self.dim)]
+
+    def encoder(self):
+
+        if self._encoder is None:
+            self._encoder = SentenceTransformer(self.model_name)
+
+        return self._encoder
 
     def close(self):
         """Close the database connection."""
@@ -227,7 +238,12 @@ class EmbeddingsStore:
 
         return EmbeddingsStore(self.path_settings)
 
-    def get_embeddings(self, items, similarity_threshold=None, oov_info=False, as_is=False):
+    def _create_embedding(self, item):
+
+        encoder = self.encoder()
+        return encoder.encode([item])[0]
+
+    def get_embeddings(self, items, create_new=True, similarity_threshold=None, add_oov_info=False, as_is=False):
         """Retrieve embeddings for given items, OOV via string similarity (fallback: random vector)."""
 
         vectors = list()
@@ -245,7 +261,13 @@ class EmbeddingsStore:
             else:
                 oov = 'random'
 
-                if similarity_threshold:
+                if create_new:
+                    vector = self._create_embedding(item)
+                    # similar_index = self.index.get_nns_by_vector(vector, 1)[0]
+                    # vector = self.index.get_item_vector(similar_index)
+                    oov = 'create-new'
+
+                elif similarity_threshold:
                     # search for a similar item
                     similar_item = self._find_string_similarity(item, similarity_threshold)
                     if similar_item:
@@ -265,7 +287,7 @@ class EmbeddingsStore:
         if not as_is:
             # DataFrame construction takes some time and should never be done if len(items) == 1
             vectors = DataFrame(index=items, data=vectors)
-            if oov_info:
+            if add_oov_info:
                 vectors['oov'] = oovs
 
         return vectors
@@ -293,12 +315,14 @@ class EmbeddingsStore:
 
         pos_vecs = neg_vecs = []
         if len(positive) > 0:
-            pos_vecs = self.get_embeddings(positive, oov_info=True)
+            print(positive)
+            pos_vecs = self.get_embeddings(positive, add_oov_info=True)
             pos_vecs = pos_vecs.loc[pos_vecs['oov'] != "random"].drop('oov', axis=1).values
+            print(pos_vecs)
         vecs = pos_vecs
 
         if len(negative) > 0:
-            neg_vecs = self.get_embeddings(negative, oov_info=True)
+            neg_vecs = self.get_embeddings(negative, add_oov_info=True)
             neg_vecs = neg_vecs.loc[neg_vecs['oov'] != "random"].drop('oov', axis=1).values
             neg_vecs = -1.0 * neg_vecs
             vecs = np.vstack([pos_vecs, neg_vecs])
