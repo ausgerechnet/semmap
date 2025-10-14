@@ -1,7 +1,10 @@
 from pandas import read_csv
 from semmap.semspace import SemanticSpace
 from semmap.embeddings_store import create_embeddings_store
+import random
+import string
 import os
+import pytest
 
 
 MAGNITUDE_PATH = "tests/data/deWiki-small.magnitude"
@@ -98,3 +101,31 @@ def test_normalise():
     new_coordinates = semspace.add(new_items)
     wrong = new_coordinates.loc[(new_coordinates.x.abs() > 1) | (new_coordinates.y.abs() > 1)]
     assert len(wrong) == 0
+
+
+# PERFORMANCE
+@pytest.mark.now
+def test_many_new():
+
+    path_settings = "tests/data/germaparl.semmap"
+    semspace = SemanticSpace(path_settings, normalise=True)
+    from time import time
+
+    random.seed(42)
+    new_items = [
+        ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+        for _ in range(100)
+    ]
+    semspace.database.model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+
+    start = time()
+    semspace._embeddings(new_items)
+    end = time()
+    elapsed = end - start
+    print(f"elapsed time: {elapsed:.6f} seconds")
+
+    start = time()
+    semspace.generate2d(new_items)
+    end = time()
+    elapsed = end - start
+    print(f"elapsed time: {elapsed:.6f} seconds")

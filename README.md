@@ -1,6 +1,6 @@
 # Semantic Map
 
-This is a Python3 module for creating and updating coordinates of semantic maps. Semantic maps are 2-dimensional representations of sets of type embeddings, the types usually gained from collocation or keyword analyses.
+This is a Python3 module for creating and updating coordinates of semantic maps. Semantic maps are two-dimensional projections of type embeddings, the types usually gained from collocation or keyword analyses.
 
 The module tackles two problems:
 - OOV in embeddings look-up (coordinates can be generated for all items, including items without embeddings)
@@ -21,7 +21,8 @@ pip install git+https://github.com/ausgerechnet/semmap.git
 ### Import
 - module supports creation of embeddings via SentenceTransformers 
 - it can also read in pre-created embeddings from FastText ("C-text") format
-  + NB: pre-computed embeddings might come without n-gram character encodings (or other subtoken representations)
+  + NB: pre-computed embeddings come without subtoken representations
+  + thus only limited OOV support possible
 
 ### CLI for creating embeddings
 - creation of embeddings via `transformers`

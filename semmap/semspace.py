@@ -160,7 +160,7 @@ class SemanticSpace:
         sim = where(sim < cutoff, 0, sim)
 
         # norm rows to use as convex combination
-        simsum = sim.sum(axis=1)  # can be 0 -- resulting rows will be replace by 1/sim.shape[1]
+        simsum = sim.sum(axis=1)  # can be 0 -- resulting rows will be replaced by 1/sim.shape[1]
         with errstate(divide='ignore', invalid='ignore'):
             sim = (sim.T / simsum).T
         sim[simsum == 0] = 1 / sim.shape[1]

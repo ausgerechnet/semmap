@@ -1,6 +1,6 @@
 from semmap.embeddings_store import create_embeddings_store, EmbeddingsStore
 import os
-import pytest
+# import pytest
 
 
 def test_create_embeddings_store():
@@ -42,7 +42,6 @@ def test_get_embeddings():
     store.get_embeddings(["tion2sdaf"], similarity_threshold=.8, add_oov_info=True)[[1, 'oov']]
 
 
-@pytest.mark.now
 def test_query():
     path_settings = "tests/data/germaparl.semmap"
     store = EmbeddingsStore(path_settings)

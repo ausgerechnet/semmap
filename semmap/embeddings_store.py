@@ -244,7 +244,9 @@ class EmbeddingsStore:
         return encoder.encode([item])[0]
 
     def get_embeddings(self, items, create_new=True, similarity_threshold=None, add_oov_info=False, as_is=False):
-        """Retrieve embeddings for given items, OOV via string similarity (fallback: random vector)."""
+        """Retrieve embeddings for given items.
+
+        OOV via LLM, string similarity, or reproducibly random vector."""
 
         vectors = list()
         oovs = list()
