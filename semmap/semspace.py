@@ -29,7 +29,7 @@ class SemanticSpace:
         self.normalise = normalise
         self.coordinates = None
 
-    def _embeddings(self, items):
+    def _embeddings(self, items, create_new=False, similarity_threshold=None):
         """Get embeddings of provided items as a DataFrame.
 
         :param list items: set of tokens to get embeddings for
@@ -41,7 +41,10 @@ class SemanticSpace:
         if len(items) != len(set(items)):
             raise ValueError('items must be unique')
 
-        embeddings = [self.database.query(item) for item in items]
+        if isinstance(self.database, EmbeddingsStore):
+            embeddings = [self.database.query(item, create_new=create_new, similarity_threshold=similarity_threshold) for item in items]
+        else:
+            embeddings = [self.database.query(item) for item in items]
         df = DataFrame(index=items, data=embeddings)
 
         return df
@@ -62,10 +65,12 @@ class SemanticSpace:
 
         return DataFrame({'item': items, 'similarity': similarities}).set_index('item')
 
-    def generate2d(self, items, method='tsne', parameters={}):
+    def generate2d(self, items, create_new=False, similarity_threshold=None, method='tsne', parameters={}):
         """Create 2d-coordinates for list of items.
 
         :param list items: list of items to generate coordinates for
+        :param bool create_new: should LLM create new embeddings for OOV items?
+        :param float similarity_threshold: use embeddings of similar items for OOV items? (only if create_new=False)
         :param str method: ["tsne"] | "umap" | "openTSNE"
         :param dict parameters: parameters to pass to dim reduction algorithm
 
@@ -74,13 +79,13 @@ class SemanticSpace:
         """
 
         # load vectors
-        embeddings = self._embeddings(items)
+        embeddings = self._embeddings(items, create_new=create_new)
 
         # if no vectors are loaded
         if embeddings.empty:
             return DataFrame()
 
-        # set up transformer
+        # set up dimensionality reduction algorithm
         if method == 'tsne':
             from sklearn.manifold import TSNE
             parameters_ = dict(

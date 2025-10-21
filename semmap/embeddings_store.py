@@ -246,7 +246,11 @@ class EmbeddingsStore:
     def get_embeddings(self, items, create_new=True, similarity_threshold=None, add_oov_info=False, as_is=False):
         """Retrieve embeddings for given items.
 
-        OOV via LLM, string similarity, or reproducibly random vector."""
+        OOV via
+        - LLM (create_new = True),
+        - string similarity (0 < similarity_threshold < 1), or
+        - reproducibly random vector (otherwise).
+        """
 
         vectors = list()
         oovs = list()
@@ -304,10 +308,10 @@ class EmbeddingsStore:
 
         return [(neighbour[1], distance) for (neighbour, distance) in zip(neighbours, distances)]
 
-    def query(self, item):
+    def query(self, item, create_new=True, similarity_threshold=None):
         """alias for get_embeddings() for single items"""
 
-        return self.get_embeddings([item], as_is=True)[0]
+        return self.get_embeddings([item], create_new=create_new, similarity_threshold=similarity_threshold, as_is=True)[0]
 
     def most_similar(self, positive, negative=[], topn=10):
         """alias for find_neighbours()
