@@ -321,10 +321,10 @@ class EmbeddingsStore:
 
         pos_vecs = neg_vecs = []
         if len(positive) > 0:
-            print(positive)
+            # print(positive)
             pos_vecs = self.get_embeddings(positive, add_oov_info=True)
             pos_vecs = pos_vecs.loc[pos_vecs['oov'] != "random"].drop('oov', axis=1).values
-            print(pos_vecs)
+            # print(pos_vecs)
         vecs = pos_vecs
 
         if len(negative) > 0:
