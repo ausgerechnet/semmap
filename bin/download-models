@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""Download and cache the sentence-embedding models used for the
+model / dimensionality-reduction comparison (see paper scope:
+BGE-M3, multilingual-e5-large, multilingual-e5-base).
+
+Models are cached via the usual HuggingFace cache (~/.cache/huggingface)
+so this only needs to be run once per machine.
+"""
+
+import argparse
+
+from sentence_transformers import SentenceTransformer
+
+MODELS = [
+    'BAAI/bge-m3',
+    'intfloat/multilingual-e5-large',
+    'intfloat/multilingual-e5-base',
+]
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description="download and cache sentence-embedding models",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('--models', nargs='+', default=MODELS, help="model names to download")
+    args = parser.parse_args()
+
+    for model_name in args.models:
+        print(f"downloading '{model_name}'")
+        SentenceTransformer(model_name)
+        print(f".. done ('{model_name}')")

@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""Compute contextual (in-sentence) embeddings for each <target>
+occurrence in a concordance file such as de-target-sentences.tsv.gz.
+
+A sentence can contain more than one <target> (even a multi-word one);
+each occurrence gets its own embedding, mean-pooled over the subtokens
+of its span, using the model's own contextualised hidden states (not
+sentence-level pooling).
+"""
+
+import argparse
+import os
+import re
+
+import pandas as pd
+import torch
+from transformers import AutoModel, AutoTokenizer
+
+from semmap.utils import Progress
+
+TAG_OPEN = '<target>'
+TAG_CLOSE = '</target>'
+SENTENCE_RE = re.compile(r'^<sentence[^>]*>\s*(.*?)\s*</sentence>$')
+
+MODELS = [
+    'BAAI/bge-m3',
+    'intfloat/multilingual-e5-large',
+    'intfloat/multilingual-e5-base',
+]
+
+
+def parse_line(line):
+    """strip the <sentence id="..."> wrapper and return (tokens, spans)
+
+    spans is a list of (start, end) word-index ranges, one per <target>
+    occurrence (end index exclusive; multi-word targets span more than
+    one token)
+    """
+    match = SENTENCE_RE.match(line.strip())
+    text = match.group(1) if match else line.strip()
+
+    tokens = []
+    spans = []
+    span_start = None
+
+    for raw in text.split():
+        is_open = raw.startswith(TAG_OPEN)
+        is_close = raw.endswith(TAG_CLOSE)
+        if is_open:
+            raw = raw[len(TAG_OPEN):]
+            span_start = len(tokens)
+        if is_close:
+            raw = raw[:-len(TAG_CLOSE)]
+        tokens.append(raw)
+        if is_close:
+            spans.append((span_start, len(tokens)))
+
+    return tokens, spans
+
+
+def embed_batch(rows, tokenizer, model, device, max_length):
+    """rows: list of (discourseme, sentence_id, tokens, spans)
+    returns one record (dict) per target occurrence
+    """
+    token_lists = [r[2] for r in rows]
+    encoding = tokenizer(token_lists, is_split_into_words=True, padding=True,
+                        truncation=True, max_length=max_length, return_tensors='pt')
+    model_inputs = {k: v.to(device) for k, v in encoding.items()}
+
+    with torch.no_grad():
+        hidden = model(**model_inputs).last_hidden_state.cpu()
+
+    records = []
+    for i, (discourseme, sentence_id, tokens, spans) in enumerate(rows):
+        word_ids = encoding.word_ids(batch_index=i)
+        for target_id, (start, end) in enumerate(spans):
+            subtoken_idx = [j for j, w in enumerate(word_ids) if w is not None and start <= w < end]
+            if not subtoken_idx:
+                continue
+            vector = hidden[i, subtoken_idx, :].mean(dim=0)
+            record = {
+                'discourseme': discourseme,
+                'sentence-id': sentence_id,
+                'target-id': target_id,
+                'target': ' '.join(tokens[start:end]),
+            }
+            record.update({f'dim_{d}': v for d, v in enumerate(vector.tolist())})
+            records.append(record)
+
+    return records
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description="compute contextual embeddings for each <target> occurrence in a concordance file",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('path_in', help="path to concordance file (.tsv.gz) with columns 'discourseme', 'sentence-id', 'line'")
+    parser.add_argument('--discourseme', default=None, help="restrict to a single discourseme (default: all)")
+    parser.add_argument('--model_name', required=True, choices=MODELS, help="embedding model to use")
+    parser.add_argument('--path_out', default=None, help="path to output .tsv.gz (default: derived from path_in, discourseme, model)")
+    parser.add_argument('--batch_size', type=int, default=32, help="number of sentences per forward pass")
+    parser.add_argument('--max_length', type=int, default=256, help="max subtoken length per sentence (longer sentences are truncated)")
+    parser.add_argument('--limit', type=int, default=None, help="only process the first N concordance lines (for quick tests)")
+    parser.add_argument('--float_format', default='%.6f', help="decimal precision when writing embeddings (fewer decimals = smaller file)")
+    parser.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu', help="")
+    args = parser.parse_args()
+
+    if args.path_out is None:
+        base = os.path.basename(args.path_in).split('.')[0]
+        disc = args.discourseme or 'all'
+        model_slug = args.model_name.split('/')[-1]
+        args.path_out = f"{base}-{disc}-{model_slug}-contextual.tsv.gz"
+
+    if os.path.exists(args.path_out):
+        raise FileExistsError(args.path_out)
+
+    print(f"reading '{args.path_in}'")
+    df = pd.read_csv(args.path_in, sep='\t')
+    if args.discourseme is not None:
+        df = df[df['discourseme'] == args.discourseme]
+    if args.limit is not None:
+        df = df.head(args.limit)
+    print(f".. {len(df)} concordance lines")
+
+    print(f"loading model ({args.model_name})")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    model = AutoModel.from_pretrained(args.model_name).to(args.device)
+    model.eval()
+
+    parsed = [
+        (discourseme, sentence_id) + parse_line(line)
+        for discourseme, sentence_id, line in zip(df['discourseme'], df['sentence-id'], df['line'])
+    ]
+    n_targets = sum(len(spans) for *_, spans in parsed)
+    print(f".. {n_targets} target occurrences to embed")
+
+    n_batches = (len(parsed) + args.batch_size - 1) // args.batch_size
+    pb = Progress(length=n_batches)
+    first_write = True
+    for i in range(0, len(parsed), args.batch_size):
+        batch = parsed[i:i + args.batch_size]
+        records = embed_batch(batch, tokenizer, model, args.device, args.max_length)
+        if records:
+            pd.DataFrame.from_records(records).to_csv(
+                args.path_out, sep='\t', index=False, compression='gzip',
+                float_format=args.float_format,
+                mode='w' if first_write else 'a',
+                header=first_write,
+            )
+            first_write = False
+        pb.up()
+
+    print(f"wrote embeddings to '{args.path_out}'")
