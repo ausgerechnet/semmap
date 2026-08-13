@@ -15,7 +15,7 @@ if __name__ == '__main__':
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('path_in', help="text file with one item per line, e.g. from 'cwb-lexdecode -P P_ATT CWB_ID'")
-    parser.add_argument('--model_name', default='sentence-transformers/paraphrase-multilingual-mpnet-base-v2', help="")
+    parser.add_argument('--model_name', default='sentence-transformers/paraphrase-multilingual-mpnet-base-v2', help="model to use")
     parser.add_argument('--path_settings', help="path to semmap settings file")
     parser.add_argument('--path_db', help="path to database of items")
     parser.add_argument('--path_annoy', help="path to annoy index")
