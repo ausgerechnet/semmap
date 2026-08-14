@@ -9,6 +9,72 @@ from sklearn.metrics.pairwise import cosine_similarity
 from .embeddings_store import EmbeddingsStore
 
 
+def reduce_dimensions(embeddings, method='tsne', parameters=None):
+    """Reduce high-dimensional embeddings to 2D coordinates.
+
+    :param DataFrame embeddings: rows are items, columns are dimensions
+    :param str method: "tsne" | "umap" | "openTSNE" | "pca"
+    :param dict parameters: parameters to pass to the dim reduction algorithm
+
+    :return: DataFrame with x and y coordinates, indexed like `embeddings`
+    :rtype: DataFrame
+    """
+
+    parameters = {} if parameters is None else parameters
+
+    if method == 'tsne':
+        from sklearn.manifold import TSNE
+        parameters_ = dict(
+            n_components=2,
+            perplexity=min(25, len(embeddings) - 1),
+            early_exaggeration=12.0,
+            learning_rate='auto',
+            max_iter=1000,
+            n_iter_without_progress=300,
+            min_grad_norm=1e-07,
+            metric='cosine',
+            metric_params=None,
+            init='pca',
+            verbose=0,
+            random_state=None,
+            method='barnes_hut',
+            angle=0.5,
+            n_jobs=4
+        )
+        parameters_.update(parameters)
+        transformer = TSNE(**parameters_)
+        data2d = transformer.fit_transform(embeddings)
+
+    elif method == 'openTSNE':
+        from openTSNE import TSNE
+        transformer = TSNE(**parameters)
+        data2d = transformer.fit(embeddings)
+
+    elif method == 'umap':
+        from umap import UMAP
+        transformer = UMAP(**parameters)
+        data2d = transformer.fit_transform(embeddings)
+
+    elif method == 'pca':
+        from sklearn.decomposition import PCA
+        parameters_ = dict(n_components=2, random_state=None)
+        parameters_.update(parameters)
+        transformer = PCA(**parameters_)
+        data2d = transformer.fit_transform(embeddings)
+
+    else:
+        raise NotImplementedError(f'transformation "{method}" not supported')
+
+    coordinates = DataFrame(
+        data=data2d,
+        index=embeddings.index,
+        columns=['x', 'y']
+    )
+    coordinates.index.name = 'item'
+
+    return coordinates
+
+
 class SemanticSpace:
 
     def __init__(self, path=None, normalise=False):
@@ -71,7 +137,7 @@ class SemanticSpace:
         :param list items: list of items to generate coordinates for
         :param bool create_new: should LLM create new embeddings for OOV items?
         :param float similarity_threshold: use embeddings of similar items for OOV items? (only if create_new=False)
-        :param str method: ["tsne"] | "umap" | "openTSNE"
+        :param str method: ["tsne"] | "umap" | "openTSNE" | "pca"
         :param dict parameters: parameters to pass to dim reduction algorithm
 
         :return: DataFrame with x and y coordinates, indexed by items
@@ -85,51 +151,7 @@ class SemanticSpace:
         if embeddings.empty:
             return DataFrame()
 
-        # set up dimensionality reduction algorithm
-        if method == 'tsne':
-            from sklearn.manifold import TSNE
-            parameters_ = dict(
-                n_components=2,
-                perplexity=min(25, len(embeddings) - 1),
-                early_exaggeration=12.0,
-                learning_rate='auto',
-                max_iter=1000,
-                n_iter_without_progress=300,
-                min_grad_norm=1e-07,
-                metric='cosine',
-                metric_params=None,
-                init='pca',
-                verbose=0,
-                random_state=None,
-                method='barnes_hut',
-                angle=0.5,
-                n_jobs=4
-            )
-            if parameters is not None:
-                parameters_.update(parameters)
-            transformer = TSNE(**parameters_)
-            data2d = transformer.fit_transform(embeddings)
-
-        elif method == 'openTSNE':
-            from openTSNE import TSNE
-            transformer = TSNE()
-            data2d = transformer.fit(embeddings)
-
-        elif method == 'umap':
-            from umap import UMAP
-            transformer = UMAP()
-            data2d = transformer.fit_transform(embeddings)
-
-        else:
-            raise NotImplementedError(f'transformation "{method}" not supported')
-
-        # generate 2d coordinates as data frame
-        coordinates = DataFrame(
-            data=data2d,
-            index=embeddings.index,
-            columns=['x', 'y']
-        )
-        coordinates.index.name = 'item'
+        coordinates = reduce_dimensions(embeddings, method=method, parameters=parameters)
 
         if self.normalise:
             coordinates.x = coordinates.x / coordinates.x.abs().max()
