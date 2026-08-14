@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""Compute context-free (type-level) embeddings for each unique <target>
+in a concordance file such as de-target-sentences.tsv.gz.
+
+Unlike bin/embed-targets, this encodes each distinct target string once,
+in isolation (no surrounding sentence) -- the counterpart needed to
+compare context-sensitive vs. context-independent embeddings.
+"""
+
+import argparse
+import os
+import re
+
+import pandas as pd
+from sentence_transformers import SentenceTransformer
+
+TARGET_RE = re.compile(r'<target(?:\s+lemma="(?P<lemma>[^"]*)")?>(?P<text>.*?)</target>')
+
+MODELS = [
+    'BAAI/bge-m3',
+    'intfloat/multilingual-e5-large',
+    'intfloat/multilingual-e5-base',
+]
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description="compute context-free embeddings for each unique <target> type in a concordance file",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('path_in', help="path to concordance file (.tsv.gz) with columns 'discourseme', 'sentence-id', 'line'")
+    parser.add_argument('--discourseme', default=None, help="restrict to a single discourseme (default: all)")
+    parser.add_argument('--model_name', nargs='+', default=MODELS, choices=MODELS, help="embedding model(s) to use; runs all of them in one go, one after the other")
+    parser.add_argument('--path_out', default=None, help="path to output .tsv.gz; only valid with a single --model_name (default: derived from path_in, discourseme, model)")
+    parser.add_argument('--float_format', default='%.6f', help="decimal precision when writing embeddings (fewer decimals = smaller file)")
+    args = parser.parse_args()
+
+    if args.path_out is not None and len(args.model_name) > 1:
+        parser.error("--path_out can only be used with a single --model_name")
+
+    def path_out_for(model_name):
+        if args.path_out is not None:
+            return args.path_out
+        base = os.path.basename(args.path_in).split('.')[0]
+        disc = args.discourseme or 'all'
+        model_slug = model_name.split('/')[-1]
+        return f"{base}-{disc}-{model_slug}-type.tsv.gz"
+
+    paths_out = {model_name: path_out_for(model_name) for model_name in args.model_name}
+    for path_out in paths_out.values():
+        if os.path.exists(path_out):
+            raise FileExistsError(path_out)
+
+    print(f"reading '{args.path_in}'")
+    df = pd.read_csv(args.path_in, sep='\t')
+    if args.discourseme is not None:
+        df = df[df['discourseme'] == args.discourseme]
+    print(f".. {len(df)} concordance lines")
+
+    # collect unique (discourseme, target) pairs, keeping the first-seen lemma
+    types = {}
+    for discourseme, line in zip(df['discourseme'], df['line']):
+        for match in TARGET_RE.finditer(line):
+            target = match.group('text').strip()
+            key = (discourseme, target)
+            if key not in types:
+                types[key] = match.group('lemma')
+    types = list(types.items())
+    print(f".. {len(types)} unique target types")
+
+    for model_name in args.model_name:
+
+        path_out = paths_out[model_name]
+
+        print(f"loading model ({model_name})")
+        encoder = SentenceTransformer(model_name)
+
+        print(f"encoding {len(types)} target types")
+        embeddings = encoder.encode([target for (discourseme, target), lemma in types])
+
+        records = [
+            {'discourseme': discourseme, 'target': target, 'lemma': lemma, **{f'dim_{d}': v for d, v in enumerate(vector.tolist())}}
+            for ((discourseme, target), lemma), vector in zip(types, embeddings)
+        ]
+        pd.DataFrame.from_records(records).to_csv(
+            path_out, sep='\t', index=False, compression='gzip', float_format=args.float_format
+        )
+
+        print(f"wrote embeddings to '{path_out}'")
+
+        del encoder

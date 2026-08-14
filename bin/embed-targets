@@ -20,11 +20,11 @@ from transformers import AutoModel, AutoTokenizer
 
 from semmap.utils import Progress
 
-TARGET_OPEN = '<target>'
-TARGET_CLOSE = '</target>'
-FOCUS_OPEN = '<focus>'
 SENTENCE_RE = re.compile(r'^<sentence[^>]*>\s*(.*?)\s*</sentence>$')
-TAG_RE = re.compile('|'.join(re.escape(t) for t in (TARGET_OPEN, TARGET_CLOSE, FOCUS_OPEN, '</focus>')))
+TAG_RE = re.compile(
+    r'<target(?:\s+lemma="(?P<target_lemma>[^"]*)")?>(?P<target_text>.*?)</target>'
+    r'|<focus(?:\s+lemma="[^"]*")?>(?P<focus_text>.*?)</focus>'
+)
 
 MODELS = [
     'BAAI/bge-m3',
@@ -36,26 +36,33 @@ MODELS = [
 def parse_line(line):
     """strip the <sentence id="..."> wrapper and return (tokens, spans)
 
-    spans is a list of (start, end) word-index ranges, one per <target>
-    occurrence (end index exclusive; multi-word targets span more than
-    one token). <focus> markers are stripped from the tokens too (they
-    are never nested with <target> on the same word) so they don't leak
-    into the model's context as literal tag text.
+    spans is a list of (start, end, lemma) word-index ranges, one per
+    <target> occurrence (end index exclusive; multi-word targets span
+    more than one token). <focus> spans are unwrapped to plain tokens
+    (kept as context, no span recorded).
+
+    Tags are resolved via regex *before* whitespace tokenisation,
+    because the lemma="..." attribute value may itself contain spaces
+    (e.g. lemma="von Mensch gemacht"), which would otherwise corrupt a
+    naive split-on-whitespace approach.
     """
     match = SENTENCE_RE.match(line.strip())
     text = match.group(1) if match else line.strip()
 
     tokens = []
     spans = []
-    span_start = None
+    pos = 0
 
-    for raw in text.split():
-        if TARGET_OPEN in raw:
-            span_start = len(tokens)
-        is_close = TARGET_CLOSE in raw
-        tokens.append(TAG_RE.sub('', raw))
-        if is_close:
-            spans.append((span_start, len(tokens)))
+    for m in TAG_RE.finditer(text):
+        tokens.extend(text[pos:m.start()].split())
+        if m.group('target_text') is not None:
+            start = len(tokens)
+            tokens.extend(m.group('target_text').split())
+            spans.append((start, len(tokens), m.group('target_lemma')))
+        else:
+            tokens.extend(m.group('focus_text').split())
+        pos = m.end()
+    tokens.extend(text[pos:].split())
 
     return tokens, spans
 
@@ -75,7 +82,7 @@ def embed_batch(rows, tokenizer, model, device, max_length):
     records = []
     for i, (discourseme, sentence_id, tokens, spans) in enumerate(rows):
         word_ids = encoding.word_ids(batch_index=i)
-        for target_id, (start, end) in enumerate(spans):
+        for target_id, (start, end, lemma) in enumerate(spans):
             subtoken_idx = [j for j, w in enumerate(word_ids) if w is not None and start <= w < end]
             if not subtoken_idx:
                 continue
@@ -85,6 +92,7 @@ def embed_batch(rows, tokenizer, model, device, max_length):
                 'sentence-id': sentence_id,
                 'target-id': target_id,
                 'target': ' '.join(tokens[start:end]),
+                'lemma': lemma,
             }
             record.update({f'dim_{d}': v for d, v in enumerate(vector.tolist())})
             records.append(record)
@@ -101,8 +109,8 @@ if __name__ == '__main__':
     parser.add_argument('path_in', help="path to concordance file (.tsv.gz) with columns 'discourseme', 'sentence-id', 'line'")
     parser.add_argument('--discourseme', default=None, help="restrict to a single discourseme (default: all)")
     parser.add_argument('--require_focus', action='store_true', default=False, help="only keep sentences with a co-occurring <focus>")
-    parser.add_argument('--model_name', required=True, choices=MODELS, help="embedding model to use")
-    parser.add_argument('--path_out', default=None, help="path to output .tsv.gz (default: derived from path_in, discourseme, model)")
+    parser.add_argument('--model_name', nargs='+', default=MODELS, choices=MODELS, help="embedding model(s) to use; runs all of them in one go, one after the other")
+    parser.add_argument('--path_out', default=None, help="path to output .tsv.gz; only valid with a single --model_name (default: derived from path_in, discourseme, model)")
     parser.add_argument('--batch_size', type=int, default=32, help="number of sentences per forward pass")
     parser.add_argument('--max_length', type=int, default=256, help="max subtoken length per sentence (longer sentences are truncated)")
     parser.add_argument('--limit', type=int, default=None, help="only process the first N concordance lines (for quick tests)")
@@ -110,30 +118,32 @@ if __name__ == '__main__':
     parser.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu', help="")
     args = parser.parse_args()
 
-    if args.path_out is None:
+    if args.path_out is not None and len(args.model_name) > 1:
+        parser.error("--path_out can only be used with a single --model_name")
+
+    def path_out_for(model_name):
+        if args.path_out is not None:
+            return args.path_out
         base = os.path.basename(args.path_in).split('.')[0]
         disc = args.discourseme or 'all'
         focus_slug = '-focus' if args.require_focus else ''
-        model_slug = args.model_name.split('/')[-1]
-        args.path_out = f"{base}-{disc}{focus_slug}-{model_slug}-contextual.tsv.gz"
+        model_slug = model_name.split('/')[-1]
+        return f"{base}-{disc}{focus_slug}-{model_slug}-contextual.tsv.gz"
 
-    if os.path.exists(args.path_out):
-        raise FileExistsError(args.path_out)
+    paths_out = {model_name: path_out_for(model_name) for model_name in args.model_name}
+    for path_out in paths_out.values():
+        if os.path.exists(path_out):
+            raise FileExistsError(path_out)
 
     print(f"reading '{args.path_in}'")
     df = pd.read_csv(args.path_in, sep='\t')
     if args.discourseme is not None:
         df = df[df['discourseme'] == args.discourseme]
     if args.require_focus:
-        df = df[df['line'].str.contains('<focus>')]
+        df = df[df['line'].str.contains('<focus', regex=False)]
     if args.limit is not None:
         df = df.head(args.limit)
     print(f".. {len(df)} concordance lines")
-
-    print(f"loading model ({args.model_name})")
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    model = AutoModel.from_pretrained(args.model_name).to(args.device)
-    model.eval()
 
     parsed = [
         (discourseme, sentence_id) + parse_line(line)
@@ -142,20 +152,33 @@ if __name__ == '__main__':
     n_targets = sum(len(spans) for *_, spans in parsed)
     print(f".. {n_targets} target occurrences to embed")
 
-    n_batches = (len(parsed) + args.batch_size - 1) // args.batch_size
-    pb = Progress(length=n_batches)
-    first_write = True
-    for i in range(0, len(parsed), args.batch_size):
-        batch = parsed[i:i + args.batch_size]
-        records = embed_batch(batch, tokenizer, model, args.device, args.max_length)
-        if records:
-            pd.DataFrame.from_records(records).to_csv(
-                args.path_out, sep='\t', index=False, compression='gzip',
-                float_format=args.float_format,
-                mode='w' if first_write else 'a',
-                header=first_write,
-            )
-            first_write = False
-        pb.up()
+    for model_name in args.model_name:
 
-    print(f"wrote embeddings to '{args.path_out}'")
+        path_out = paths_out[model_name]
+
+        print(f"loading model ({model_name})")
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModel.from_pretrained(model_name).to(args.device)
+        model.eval()
+
+        n_batches = (len(parsed) + args.batch_size - 1) // args.batch_size
+        pb = Progress(length=n_batches)
+        first_write = True
+        for i in range(0, len(parsed), args.batch_size):
+            batch = parsed[i:i + args.batch_size]
+            records = embed_batch(batch, tokenizer, model, args.device, args.max_length)
+            if records:
+                pd.DataFrame.from_records(records).to_csv(
+                    path_out, sep='\t', index=False, compression='gzip',
+                    float_format=args.float_format,
+                    mode='w' if first_write else 'a',
+                    header=first_write,
+                )
+                first_write = False
+            pb.up()
+
+        print(f"wrote embeddings to '{path_out}'")
+
+        del model, tokenizer
+        if args.device == 'cuda':
+            torch.cuda.empty_cache()
