@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""Reduce type- or contextual-embedding tables (as produced by
+bin/embed-target-types / bin/embed-targets) to 2D coordinates for
+visualisation.
+
+Rows are grouped by (discourseme, --group_by) and mean-aggregated
+before dimensionality reduction. With --group_by target (default),
+this is a no-op for type tables (already one row per item) and
+averages over occurrences for contextual tables. With --group_by
+lemma, surface-form variants of the same lemma (e.g. "Anpassung" /
+"anpassung" / "Anpassen") are conflated into a single item too.
+
+Output columns: discourseme, item, x, y (plus 'source' with --combine)
+
+With --combine, two or more input tables (typically a type table and a
+contextual table for the same model) are embedded together in a
+*single* run of the reduction algorithm, rather than each getting its
+own independent (and hence incomparable) projection. Each input is
+tagged with a 'source' column ('type' or 'contextual', auto-detected)
+so the result can be facet_wrap'd by source for a like-for-like
+comparison in the same 2D space.
+"""
+
+import argparse
+import os
+
+import pandas as pd
+
+from semmap.semspace import reduce_dimensions
+
+METHODS = ['tsne', 'umap', 'openTSNE', 'pca']
+GROUP_BY_COLUMNS = ['target', 'lemma']
+
+
+def load_item_vectors(path_in, group_by='target'):
+    """load an embeddings table and return (vectors, source)
+
+    vectors is one mean-aggregated row per (discourseme, group_by
+    column); source is 'contextual' or 'type', auto-detected from the
+    presence of a 'sentence-id' column
+    """
+    df = pd.read_csv(path_in, sep='\t')
+    dim_cols = [c for c in df.columns if c.startswith('dim_')]
+
+    if group_by not in df.columns:
+        raise ValueError(f"column '{group_by}' not found in '{path_in}' -- was it generated before lemma support was added? rerun bin/embed-targets / bin/embed-target-types")
+
+    source = 'contextual' if 'sentence-id' in df.columns else 'type'
+
+    vectors = df.groupby(['discourseme', group_by], sort=False)[dim_cols].mean()
+    vectors.index.names = ['discourseme', 'item']
+
+    return vectors, source
+
+
+def strip_known_suffix(path_in):
+    base = os.path.basename(path_in)
+    for suffix in ('-contextual.tsv.gz', '-type.tsv.gz'):
+        if base.endswith(suffix):
+            return base[:-len(suffix)]
+    return base
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description="reduce type- or contextual-embedding tables to 2D coordinates (discourseme, item, x, y)",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('path_in', nargs='+', help="path(s) to embeddings .tsv.gz file(s), as produced by bin/embed-targets or bin/embed-target-types")
+    parser.add_argument('--method', default='tsne', choices=METHODS, help="dimensionality reduction algorithm")
+    parser.add_argument('--group_by', default='target', choices=GROUP_BY_COLUMNS, help="conflate items by surface form or by lemma")
+    parser.add_argument('--combine', action='store_true', default=False, help="embed all path_in together in a single reduction run (adds a 'source' column) instead of projecting each independently")
+    parser.add_argument('--path_out', default=None, help="path to output .tsv.gz; only valid with a single path_in, or with --combine (default: derived from path_in, group_by and method)")
+    args = parser.parse_args()
+
+    if args.path_out is not None and len(args.path_in) > 1 and not args.combine:
+        parser.error("--path_out can only be used with a single path_in (or with --combine)")
+
+    if args.combine and len(args.path_in) < 2:
+        parser.error("--combine needs at least two path_in")
+
+    if args.combine:
+
+        loaded = [load_item_vectors(path_in, group_by=args.group_by) for path_in in args.path_in]
+        dims = {vectors.shape[1] for vectors, source in loaded}
+        if len(dims) > 1:
+            raise ValueError(f"path_in have differing embedding dimensionality {dims} -- did you mix different models?")
+
+        if args.path_out is not None:
+            path_out = args.path_out
+        else:
+            bases = [strip_known_suffix(path_in) for path_in in args.path_in]
+            common = os.path.commonprefix(bases).rstrip('-') or '_'.join(bases)
+            group_by_slug = '-lemma' if args.group_by == 'lemma' else ''
+            path_out = f"{common}-combined{group_by_slug}-{args.method}.tsv.gz"
+
+        if os.path.exists(path_out):
+            raise FileExistsError(path_out)
+
+        vectors = pd.concat({source: v for v, source in loaded}, names=['source'])
+        print(f".. {len(vectors)} items total ({', '.join(f'{source}: {len(v)}' for v, source in loaded)})")
+
+        print(f"reducing dimensions ({args.method})")
+        coordinates = reduce_dimensions(vectors, method=args.method)
+
+        result = coordinates.reset_index()[['discourseme', 'item', 'source', 'x', 'y']]
+        result.to_csv(path_out, sep='\t', index=False)
+        print(f"wrote coordinates to '{path_out}'")
+
+    else:
+
+        for path_in in args.path_in:
+
+            if args.path_out is not None:
+                path_out = args.path_out
+            else:
+                base = strip_known_suffix(path_in)
+                group_by_slug = '-lemma' if args.group_by == 'lemma' else ''
+                path_out = f"{base}{group_by_slug}-{args.method}.tsv.gz"
+
+            if os.path.exists(path_out):
+                raise FileExistsError(path_out)
+
+            print(f"reading '{path_in}'")
+            vectors, source = load_item_vectors(path_in, group_by=args.group_by)
+            print(f".. {len(vectors)} items ({source})")
+
+            print(f"reducing dimensions ({args.method})")
+            coordinates = reduce_dimensions(vectors, method=args.method)
+
+            result = coordinates.reset_index()
+            result.to_csv(path_out, sep='\t', index=False)
+            print(f"wrote coordinates to '{path_out}'")
