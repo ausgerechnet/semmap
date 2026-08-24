@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Compute context-free (type-level) embeddings for each unique <target>
+"""Compute context-free (type-level) embeddings for each unique lemma
 in a concordance file such as de-target-sentences.tsv.gz.
 
-Unlike bin/embed-targets, this encodes each distinct target string once,
-in isolation (no surrounding sentence) -- the counterpart needed to
-compare context-sensitive vs. context-independent embeddings.
+Unlike bin/embed-targets, this encodes each distinct lemma once, in
+isolation (no surrounding sentence) -- the counterpart needed to
+compare context-sensitive vs. context-independent embeddings. The
+lemma string itself is encoded (not any one surface form), so this is
+a clean type-level baseline: one vector per lemma, independent of
+which inflected spelling happens to dominate the corpus. 'target' and
+'lemma' hold the same value here (both are the lemma) purely so the
+output schema matches bin/embed-targets' contextual tables, where they
+genuinely differ.
 """
 
 import argparse
@@ -60,16 +66,15 @@ if __name__ == '__main__':
         df = df[df['discourseme'] == args.discourseme]
     print(f".. {len(df)} concordance lines")
 
-    # collect unique (discourseme, target) pairs, keeping the first-seen lemma
-    types = {}
+    # collect unique (discourseme, lemma) pairs (fall back to the surface form if a
+    # target has no lemma attribute, e.g. an older concordance file)
+    lemmas = set()
     for discourseme, line in zip(df['discourseme'], df['line']):
         for match in TARGET_RE.finditer(line):
-            target = match.group('text').strip()
-            key = (discourseme, target)
-            if key not in types:
-                types[key] = match.group('lemma')
-    types = list(types.items())
-    print(f".. {len(types)} unique target types")
+            lemma = match.group('lemma') or match.group('text').strip()
+            lemmas.add((discourseme, lemma))
+    lemmas = sorted(lemmas)
+    print(f".. {len(lemmas)} unique lemmas")
 
     for model_name in args.model_name:
 
@@ -78,12 +83,12 @@ if __name__ == '__main__':
         print(f"loading model ({model_name})")
         encoder = SentenceTransformer(model_name)
 
-        print(f"encoding {len(types)} target types")
-        embeddings = encoder.encode([target for (discourseme, target), lemma in types])
+        print(f"encoding {len(lemmas)} lemmas")
+        embeddings = encoder.encode([lemma for discourseme, lemma in lemmas])
 
         records = [
-            {'discourseme': discourseme, 'target': target, 'lemma': lemma, **{f'dim_{d}': v for d, v in enumerate(vector.tolist())}}
-            for ((discourseme, target), lemma), vector in zip(types, embeddings)
+            {'discourseme': discourseme, 'target': lemma, 'lemma': lemma, **{f'dim_{d}': v for d, v in enumerate(vector.tolist())}}
+            for (discourseme, lemma), vector in zip(lemmas, embeddings)
         ]
         pd.DataFrame.from_records(records).to_csv(
             path_out, sep='\t', index=False, compression='gzip', float_format=args.float_format
