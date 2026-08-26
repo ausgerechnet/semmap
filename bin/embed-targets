@@ -29,7 +29,8 @@ TAG_RE = re.compile(
 MODELS = [
     'BAAI/bge-m3',
     'intfloat/multilingual-e5-large',
-    'intfloat/multilingual-e5-base',
+    'sentence-transformers/paraphrase-multilingual-mpnet-base-v2',
+    'sentence-transformers/LaBSE',
 ]
 
 
